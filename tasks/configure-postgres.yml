@@ -1,0 +1,23 @@
+---
+# create database
+- name: Create database
+  become: yes
+  postgresql_db:
+    name: "{{ ansible_env.USER }}"
+    state: present
+    login_host: "10.2.1.42"
+    login_user: "{{ ansible_env.USER }}"
+    login_password: "{{ ansible_env.USER }}"
+    port: 5432
+
+# install postgis extension
+- name: Install postgis extension
+  become: yes
+  postgresql_ext:
+    name: postgis
+    db: "{{ ansible_env.USER }}"
+    state: present
+    login_host: "10.2.1.42"
+    login_user: "{{ ansible_env.USER }}"
+    login_password: "{{ ansible_env.USER }}"
+    port: 5432

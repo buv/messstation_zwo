@@ -1,0 +1,83 @@
+---
+- name: Check grafana health
+  uri:
+    url: "http://localhost:3000/api/health"
+    method: GET
+    status_code:
+      - 200
+      - -1
+  register: grafana_health
+  until: grafana_health.status == 200
+  retries: 30
+  delay: 2
+
+#
+# DFLD dashboard
+#
+
+- name: Create influxdb datasource
+  community.grafana.grafana_datasource:
+    name: "influxdb"
+    grafana_url: "http://localhost:3000/"
+    grafana_user: "{{ ansible_env.USER }}"
+    grafana_password: "{{ ansible_env.USER }}"
+    user: "{{ ansible_env.USER }}"
+    password: "{{ ansible_env.USER }}"
+    ds_type: "influxdb"
+    ds_url: "http://influxdb:8086/"
+    database: "dfld"
+    uid: "cectojnfyi3ggd"
+
+- name: Copy dashboard file to remote host
+  copy:
+    src: files/grafana-dfld.json
+    dest: /tmp
+    owner: "{{ ansible_env.USER }}"
+    group: "{{ ansible_env.USER }}"
+    mode: '0600'    
+
+- name: Import Grafana dashboard 
+  community.grafana.grafana_dashboard:
+    grafana_url: "http://localhost:3000/"
+    url_username: "{{ ansible_env.USER }}"
+    url_password: "{{ ansible_env.USER }}"
+    state: present
+    commit_message: Updated by ansible
+    overwrite: true
+    path: /tmp/grafana-dfld.json
+
+#
+# System dashboard
+#
+
+- name: Create influxdb datasource
+  community.grafana.grafana_datasource:
+    name: "influxdb-system"
+    grafana_url: "http://localhost:3000/"
+    grafana_user: "{{ ansible_env.USER }}"
+    grafana_password: "{{ ansible_env.USER }}"
+    user: "{{ ansible_env.USER }}"
+    password: "{{ ansible_env.USER }}"
+    ds_type: "influxdb"
+    ds_url: "http://influxdb:8086/"
+    database: "local_monitoring"
+    uid: "def0lj80ybny8f"
+
+- name: Copy dashboard file to remote host
+  copy:
+    src: files/grafana-system.json
+    dest: /tmp
+    owner: "{{ ansible_env.USER }}"
+    group: "{{ ansible_env.USER }}"
+    mode: '0600'    
+
+- name: Import Grafana dashboard 
+  community.grafana.grafana_dashboard:
+    grafana_url: "http://localhost:3000/"
+    url_username: "{{ ansible_env.USER }}"
+    url_password: "{{ ansible_env.USER }}"
+    state: present
+    commit_message: Updated by ansible
+    overwrite: true
+    path: /tmp/grafana-system.json
+

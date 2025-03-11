@@ -1,0 +1,14 @@
+---
+- name: Install docker role
+  local_action:
+    command ansible-galaxy install geerlingguy.docker
+
+- name: Docker playbook
+  vars:
+    docker_install_compose: true
+    docker_users:
+      - "{{ ansible_env.USER }}"
+  include_role:
+    name: geerlingguy.docker
+    apply:
+      become: true

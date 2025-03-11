@@ -1,0 +1,53 @@
+---
+- name: Get I2C status
+  shell: "raspi-config nonint get_i2c"
+  register: i2c_status
+  changed_when: False
+
+- name: Print I2C status
+  debug:
+    msg: "I2C status is: {{ i2c_status.stdout }}"
+
+- name: Enable I2C
+  become: true
+  shell: "raspi-config nonint do_i2c 0"
+  when: i2c_status.stdout != '0'
+
+- name: Ensure group docker exists
+  become: true
+  group:
+    name: docker
+    state: present
+
+- name: Ensure user are added to the docker group.
+  become: true
+  user:
+    name: "{{ ansible_env.USER }}"
+    groups: docker
+    append: true
+
+- name: Reboot if changed
+  become: true
+  reboot:
+    reboot_timeout: 120
+  when:
+    - i2c_status.stdout != '0'
+    - inventory_hostname != 'localhost'
+
+- name: Reboot if changed and running locally
+  become: true
+  shell: "sleep 5 && reboot"
+  async: 1
+  poll: 0
+  when:
+    - i2c_status.stdout != '0'
+    - inventory_hostname == 'localhost'
+
+- name: Please rerun skript after reboot
+  meta: end_play
+  when:
+    - i2c_status.stdout != '0'
+    - inventory_hostname == 'localhost'
+
+
+

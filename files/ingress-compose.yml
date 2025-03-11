@@ -1,0 +1,93 @@
+services:
+  dnms2influx:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: dnms2influx
+    entrypoint: python /dfld/dnms2influx.py
+    environment:
+      - INFLUXDB_USERNAME=${ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - INFLUXDB_MEASUREMENT=${INFLUXDB_DNMS_MEASUREMENT}
+      - DEVICE=${DEVICE_DNMS}
+      - LOG_LEVEL=INFO
+    networks:
+      - network
+    devices:
+      - ${DEVICE_DNMS}
+
+  dfld2influx:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: dfld2influx
+    entrypoint: python /dfld/dfld2influx.py
+    environment:
+      - INFLUXDB_USERNAME=${ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - INFLUXDB_MEASUREMENT=${INFLUXDB_DFLD_MEASUREMENT}
+      - DEVICE=${DEVICE_DFLD}
+      - LOG_LEVEL=INFO
+    networks:
+      - network
+    devices:
+      - ${DEVICE_DFLD}
+
+  dnmsiic2influx:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: dnmsiic2influx
+    entrypoint: python /dfld/dnmsiic2influx.py
+    environment:
+      - INFLUXDB_USERNAME=${ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - INFLUXDB_MEASUREMENT=${INFLUXDB_DNMSIIC_MEASUREMENT}
+      - LOG_LEVEL=INFO
+    networks:
+      - network
+    devices:
+      - ${DEVICE_I2C}
+
+  bme2influx:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: bme2influx
+    entrypoint: python /dfld/bme2influx.py
+    environment:
+      - INFLUXDB_USERNAME=${ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - INFLUXDB_MEASUREMENT=${INFLUXDB_AIR_MEASUREMENT}
+      - LOG_LEVEL=INFO
+    networks:
+      - network
+    devices:
+      - ${DEVICE_I2C}
+
+  detect_flyover:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: detect_flyover
+    entrypoint: python /dfld/detect_flyover.py
+    environment:
+      - INFLUXDB_USERNAME=${ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - INFLUXDB_MEASUREMENT=${INFLUXDB_EVENT_MEASUREMENT}
+      - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
+      - STATION_POSITION=${STATION_POSITION}
+      - LOG_LEVEL=INFO
+    networks:
+      - network
+
+
+networks:
+    network:
+        name: dfld_network
+        external: true

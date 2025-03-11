@@ -1,0 +1,14 @@
+---
+- name: Copy files for docker image
+  copy:
+    src: "./files/dfld_box/"
+    dest: "~/dfld_box"
+    force: false
+
+- name: Build dfld_box image
+  community.docker.docker_image:
+    name: dfld_box
+    build:
+      path: "~/dfld_box"
+    source: build
+
