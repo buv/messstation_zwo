@@ -77,6 +77,8 @@
     - /dfld/influxdb/config
     - /dfld/grafana/data
     - /dfld/grafana/provisioning
+    - /dfld/ultrafeeder/globe_history
+    - /dfld/ultrafeeder/graphs1090
     - /dfld/telegraf
 
 - name: Copy telegraf config
@@ -86,12 +88,16 @@
     mode: '0644'
 
 #
-# create infrastructure stack
+# create stacks
 #
 
 - name: Read infrastructure env file
   set_fact:
-    compose_env: "{{ dict(lookup('file', 'files/infrastructure-compose.env').split() | map('split', '=')) }}"
+    compose_env: "{{ dict(lookup('file', 'files/compose.env').split() | map('split', '=')) }}"
+
+#
+# create infrastructure stack
+#
 
 - name: Read infrastructure yml compose file
   set_fact:
@@ -121,10 +127,6 @@
 #
 # create ingress stack
 #
-
-- name: Read ingress env file
-  set_fact:
-    compose_env: "{{ dict(lookup('file', 'files/ingress-compose.env').split() | map('split', '=')) }}"
 
 - name: Read infrastructure yml compose file
   set_fact:

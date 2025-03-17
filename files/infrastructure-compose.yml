@@ -1,30 +1,66 @@
 services:
-  dump1090:
-    image: jraviles/dump1090
+  ultrafeeder:
+    image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
+    # Note - if you want to enable telegraf for use with InfluxDB/Prometheus and Grafana,
+    # use the following image instead:
+    # image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf
+    container_name: ultrafeeder
+    hostname: ultrafeeder
     restart: unless-stopped
-    container_name: dump1090
-    networks:
-      - network
+    device_cgroup_rules:
+      - "c 189:* rwm"
     ports:
-      - 8080:8080/tcp
-      - 30003:30003/tcp
-    devices:
-      - /dev/bus/usb
-
-  postgres:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    container_name: postgres
-    networks:
-      - network
-    ports:
-      - 5432:5432
-    volumes:
-       - ${DOCKER_EXTERNAL_ROOT}/postgres/data:/data/postgres
+      - 8080:80/tcp
     environment:
-      POSTGRES_USER: ${ADMIN_USERNAME}
-      POSTGRES_PASSWORD: ${ADMIN_PASSWORD}
-      PGDATA: /data/postgres
+    # --------------------------------------------------
+    # general parameters:
+      - LOGLEVEL=error
+      - TZ=${TZ}
+    # --------------------------------------------------
+    # SDR related parameters:
+      - READSB_DEVICE_TYPE=rtlsdr
+    #
+    # --------------------------------------------------
+    # readsb/decoder parameters:
+      - READSB_LAT=${LAT}
+      - READSB_LON=${LON}
+      - READSB_ALT=${ALT_M}m
+      - READSB_RX_LOCATION_ACCURACY=2
+      - READSB_STATS_RANGE=true
+    #
+    # --------------------------------------------------
+    #
+    # --------------------------------------------------
+    # TAR1090 (Map Web Page) parameters:
+      - UPDATE_TAR1090=true
+      - TAR1090_DEFAULTCENTERLAT=${LAT}
+      - TAR1090_DEFAULTCENTERLON=${LON}
+      - TAR1090_MESSAGERATEINTITLE=true
+      - TAR1090_PAGETITLE=${ADMIN_USERNAME}
+      - TAR1090_PLANECOUNTINTITLE=true
+      - TAR1090_ENABLE_AC_DB=true
+      - TAR1090_FLIGHTAWARELINKS=true
+      - TAR1090_SITESHOW=true
+      - TAR1090_RANGE_OUTLINE_COLORED_BY_ALTITUDE=true
+      - TAR1090_RANGE_OUTLINE_WIDTH=2.0
+      - TAR1090_RANGERINGSDISTANCES=50,100,150,200
+      - TAR1090_RANGERINGSCOLORS='#1A237E','#0D47A1','#42A5F5','#64B5F6'
+      - TAR1090_USEROUTEAPI=true
+    #
+    # --------------------------------------------------
+    # GRAPHS1090 (Decoder and System Status Web Page) parameters:
+      - GRAPHS1090_DARKMODE=true
+    volumes:
+      - ${DOCKER_EXTERNAL_ROOT}/ultrafeeder/globe_history:/var/globe_history
+      - ${DOCKER_EXTERNAL_ROOT}/ultrafeeder/graphs1090:/var/lib/collectd
+      - /proc/diskstats:/proc/diskstats:ro
+      - /dev/bus/usb:/dev/bus/usb
+    tmpfs:
+      - /run:exec,size=256M
+      - /tmp:size=128M
+      - /var/log:size=32M
+    networks:
+      - network
 
   influxdb:
     image: influxdb:1.11.8-alpine

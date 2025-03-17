@@ -1,5 +1,0 @@
-influxdb==5.3.2
-pyserial==3.5
-numpy==2.2.3
-smbus3==0.5.5
-RPi.bme280==0.2.4

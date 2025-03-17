@@ -26,7 +26,8 @@ for device, var in devices.items():
 # check for RTL-SDR on USB for ADS-B readout
 #
 supported_devices = [
-    "0bda:2838"
+    "0bda:2838", # nooElec
+    "0bda:2832", # SDR ADS-B
 ]
 for s in supported_devices:
     rc = subprocess.call(f"lsusb | grep -q {s}", shell=True)

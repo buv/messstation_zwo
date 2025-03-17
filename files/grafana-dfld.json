@@ -1,3 +1,4 @@
+
 {
   "annotations": {
     "list": [
@@ -18,29 +19,6 @@
           "type": "influxdb",
           "uid": "cectojnfyi3ggd"
         },
-        "enable": false,
-        "hide": false,
-        "iconColor": "red",
-        "name": "Überflüge",
-        "target": {
-          "fromAnnotations": true,
-          "name": "Überflüge",
-          "query": "select title, text, tags from events where $timeFilter limit 1000",
-          "queryType": "tags",
-          "rawQuery": true,
-          "refId": "",
-          "tagsColumn": "tags",
-          "textColumn": "text",
-          "textEditor": true,
-          "timeEndColumn": "",
-          "titleColumn": ""
-        }
-      },
-      {
-        "datasource": {
-          "type": "influxdb",
-          "uid": "cectojnfyi3ggd"
-        },
         "enable": true,
         "filter": {
           "exclude": false,
@@ -54,7 +32,7 @@
         "target": {
           "fromAnnotations": true,
           "name": "U3",
-          "query": "select text, tags, title from events where dist>1800 and $timeFilter limit 1000",
+          "query": "select text, title from events where dist>1800 and $timeFilter limit 1000",
           "queryType": "tags",
           "rawQuery": true,
           "refId": "",
@@ -82,7 +60,7 @@
         "name": "U2",
         "target": {
           "fromAnnotations": true,
-          "query": "select text, tags, title from events where dist>1200 and dist <= 1800 and $timeFilter limit 1000",
+          "query": "select text, title from events where dist>1200 and dist <= 1800 and $timeFilter limit 1000",
           "rawQuery": true,
           "refId": "Anno",
           "tagsColumn": "tags",
@@ -108,7 +86,7 @@
         "name": "U1",
         "target": {
           "fromAnnotations": true,
-          "query": "select text, tags, title from events where dist<=1200 and $timeFilter limit 1000",
+          "query": "select text,  title from events where dist<=1200 and $timeFilter limit 1000",
           "rawQuery": true,
           "refId": "Anno",
           "tagsColumn": "tags",
@@ -206,7 +184,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "DNMS dB A avg",
@@ -271,6 +249,8 @@
           "measurement": "dfld_serial",
           "orderByTime": "ASC",
           "policy": "default",
+          "query": "SELECT mean(\"dB_A_avg\") FROM \"dfld_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series",
           "select": [
@@ -380,7 +360,7 @@
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "groupBy": [],
@@ -395,7 +375,7 @@
             [
               {
                 "params": [
-                  "callsign"
+                  "hex"
                 ],
                 "type": "field"
               },
@@ -517,7 +497,7 @@
         "xTickLabelRotation": -45,
         "xTickLabelSpacing": 100
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "NW",
@@ -544,7 +524,7 @@
             [
               {
                 "params": [
-                  "icao_id"
+                  "hex"
                 ],
                 "type": "field"
               },
@@ -592,7 +572,7 @@
             [
               {
                 "params": [
-                  "icao_id"
+                  "hex"
                 ],
                 "type": "field"
               },
@@ -661,12 +641,72 @@
                 "value": 185
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Callsign"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 113
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distance"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 83
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Registration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 104
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Type"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 68
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Description"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 233
+              }
+            ]
           }
         ]
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
+        "w": 9,
         "x": 9,
         "y": 9
       },
@@ -689,7 +729,7 @@
           }
         ]
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "Letzte Überflüge",
@@ -705,7 +745,7 @@
           "measurement": "events",
           "orderByTime": "DESC",
           "policy": "default",
-          "query": "SELECT \"callsign\" as Callsign, \"dist\" as Distance, \"icao_id\" as ICAO FROM \"events\" WHERE $timeFilter ORDER BY time DESC",
+          "query": "SELECT \"flight\" as Callsign, \"dist\" as Distance, \"r\" as Registration, \"t\" as Type, \"hex\" as ICAO FROM \"events\" WHERE $timeFilter ORDER BY time DESC",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "table",
@@ -806,8 +846,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 9,
-        "x": 15,
+        "w": 6,
+        "x": 18,
         "y": 9
       },
       "id": 7,
@@ -826,7 +866,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "Minimal Distance / m",
@@ -935,7 +975,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "Luftdruck",
@@ -1059,7 +1099,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "Temperatur",
@@ -1183,7 +1223,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.5.1",
+      "pluginVersion": "11.5.2",
       "targets": [
         {
           "alias": "relative Luftfeuchtigkeit",
@@ -1225,6 +1265,120 @@
       ],
       "title": "Luftfeuchtigkeit",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "cectojnfyi3ggd"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 13,
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "cellValues": {
+          "unit": "dB"
+        },
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Spectral",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-9
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "hertz"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "alias": "dB Z",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "cectojnfyi3ggd"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "dnms_serial",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"LZeq20\"), mean(\"LZeq25\"), mean(\"LZeq31.5\"), mean(\"LZeq40\"), mean(\"LZeq50\"), mean(\"LZeq63\"), mean(\"LZeq80\"), mean(\"LZeq100\"), mean(\"LZeq125\"), mean(\"LZeq160\"), mean(\"LZeq200\"), mean(\"LZeq250\"), mean(\"LZeq315\"), mean(\"LZeq400\"), mean(\"LZeq500\"), mean(\"LZeq630\"), mean(\"LZeq800\"), mean(\"LZeq1000\"), mean(\"LZeq1250\"), mean(\"LZeq1600\"), mean(\"LZeq2000\"), mean(\"LZeq2500\"), mean(\"LZeq3150\"), mean(\"LZeq4000\"), mean(\"LZeq5000\"), mean(\"LZeq6300\"), mean(\"LZeq8000\"), mean(\"LZeq10000\"), mean(\"LZeq12500\"), mean(\"LZeq16000\"), mean(\"LZeq20000\") FROM \"dnms_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "LAeq20"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "title": "Spectrogramm",
+      "type": "heatmap"
     }
   ],
   "preload": false,
@@ -1235,13 +1389,13 @@
     "list": []
   },
   "time": {
-    "from": "2025-03-03T05:39:45.611Z",
-    "to": "2025-03-03T08:46:30.697Z"
+    "from": "now-24h",
+    "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "DFLD",
   "uid": "fectqemeiurcwa",
-  "version": 48,
+  "version": 16,
   "weekStart": ""
 }

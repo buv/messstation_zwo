@@ -140,6 +140,30 @@
                 }
               }
             ]
+          },
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "used"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
           }
         ]
       },
@@ -490,7 +514,7 @@
                 "params": [
                   "1s"
                 ],
-                "type": "derivative"
+                "type": "non_negative_derivative"
               }
             ]
           ],
@@ -538,7 +562,7 @@
                 "params": [
                   "1s"
                 ],
-                "type": "derivative"
+                "type": "non_negative_derivative"
               }
             ]
           ],
@@ -567,7 +591,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 0,
+            "fillOpacity": 30,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -585,7 +609,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -656,9 +680,9 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "I/O Waits",
+                  "User",
                   "System",
-                  "User"
+                  "I/O Waits"
                 ],
                 "prefix": "All except:",
                 "readOnly": true
@@ -1055,7 +1079,7 @@
                 "params": [
                   "1s"
                 ],
-                "type": "derivative"
+                "type": "non_negative_derivative"
               }
             ]
           ],
@@ -1103,7 +1127,7 @@
                 "params": [
                   "1s"
                 ],
-                "type": "derivative"
+                "type": "non_negative_derivative"
               }
             ]
           ],
@@ -1195,6 +1219,30 @@
                 "value": {
                   "fixedColor": "green",
                   "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "Disk used"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
                 }
               }
             ]
@@ -1309,6 +1357,132 @@
       ],
       "title": "Disk Usage",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "def0lj80ybny8f"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "def0lj80ybny8f"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "temp",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "temp"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "title": "CPU Temperatur",
+      "type": "timeseries"
     }
   ],
   "preload": false,
@@ -1319,13 +1493,13 @@
     "list": []
   },
   "time": {
-    "from": "now-3h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "System",
   "uid": "fef0n5intq41sd",
-  "version": 11,
+  "version": 7,
   "weekStart": ""
 }

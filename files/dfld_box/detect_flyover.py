@@ -1,4 +1,5 @@
 import os
+import json
 import math
 import time
 import socket
@@ -9,6 +10,8 @@ from influxdb import InfluxDBClient
 
 level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO 
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
+logging.info('starting...')
+logging.info(f'LOG_LEVEL={level}')
 
 missing_env = []
 for k in "DUMP1090_SERVER INFLUXDB_SERVER INFLUXDB_USERNAME INFLUXDB_PASSWORD INFLUXDB_DATABASE INFLUXDB_MEASUREMENT STATION_POSITION".split():
@@ -47,7 +50,7 @@ def xyz(lon, lat, alt):
 
 def update_info(sign, key, value):
     if sign not in info:
-        info[sign] = { k: None for k in "callsign squawk last_active".split()}
+        info[sign] = { 'last_active': None }
         info[sign]['flyover_detected'] = False
     info[sign][key] = value
 
@@ -72,75 +75,78 @@ while True:
         
         with s.makefile('r') as f:
             for line in f:
-                # split the line into a list of strings
-                data = line.rstrip().split(',')
+                # parse line as json
+                try:
+                    data = json.loads(line)
+                except:
+                    continue
+                # sample data: {"now" : 1742043492.321,"hex":"3c4594","type":"adsb_icao","flight":"BOX457  ","r":"D-AALT","t":"B77L",
+                #               "desc":"BOEING 777-200LR","alt_baro":3700,"alt_geom":3825,"gs":176.3,"ias":186,"tas":194,"mach":0.300,
+                #               "wd":78,"ws":18,"track":69.41,"roll":1.58,"mag_heading":65.21,"true_heading":68.67,"baro_rate":-1152,
+                #               "geom_rate":-1152,"squawk":"1162","emergency":"none","category":"A5","nav_qnh":1014.4,"nav_altitude_mcp":4992,
+                #               "nav_heading":66.09,"lat":49.982300,"lon":8.269290,"nic":8,"rc":186,"seen_pos":0.000,"r_dst":0.449,"r_dir":226.2,
+                #               "version":2,"nic_baro":1,"nac_p":10,"nac_v":2,"sil":3,"sil_type":"perhour","gva":2,"sda":2,"alert":0,"spi":0,
+                #               "mlat":[],"tisb":[],"messages":405,"seen":0.0,"rssi":-17.1}
                 logging.debug(f'data read: {data}')
-                if len(data)>10 and data[4]:
-                    adsb_id = data[4].strip()
-                    update_info(adsb_id, 'last_active', time.time())
-                    if data[1] == '3':
-                        if data[15] and data[14] and data[11]:
-                            # extract the longitude, latitude, and altitude
-                            lon = float(data[15])
-                            lat = float(data[14])
-                            alt = float(data[11]) * 0.3048
-                            # convert to xyz coordinates
-                            xyz1 = xyz(lon, lat, alt)
-                            v1 = xyz1 - xyz0
-                            # calculate the distance between the two points
-                            dist = np.linalg.norm(v1)
-                            # calculate the distance in x-y plane
-                            dist_xy = np.linalg.norm(xyz(lon, lat, lon_lat_alt[2])-xyz0)
-                            # we look at a cylinder with given radius, height is ignored
-                            if dist_xy < 5000:
-                                if 'last_coords' in info[adsb_id]:
-                                    v0 = info[adsb_id]['last_coords']
-                                    # TODO: scale d to seconds by dividing by time difference t1 - t0
-                                    d = v1 - v0
-                                    lambda_ = -np.dot(v0, d) / np.dot(d, d)
-                                    dist_0 = np.linalg.norm(v0 + lambda_ * d)
-                                    logging.info(f"{adsb_id}: {info[adsb_id]['callsign']}   "
-                                                 f"dist={dist:6.1f}   "
-                                                 f"dist_0={dist_0:6.1f}   "
-                                                 f"dist_xy={dist_xy:6.1f}   "
-                                                 f"lambda={lambda_:6.1f}    FOD={info[adsb_id]['flyover_detected']}")
-                                    if -5 < lambda_ < 0 and dist_0 < 3000 and not info[adsb_id]['flyover_detected']:
-                                        update_info(adsb_id, 'flyover_detected', True)
-                                        sign = info[adsb_id]['callsign'] if info[adsb_id]['callsign'] else 'NN'
-                                        json_body = [
-                                            {
-                                                "measurement": args.measurement,
-                                                "tags": {
-                                                    "type": "flyover"
-                                                },
-                                                "fields": {
-                                                    "tags": "",
-                                                    "dist": dist_0,
-                                                    "icao_id": adsb_id,
-                                                    "callsign": sign,
-                                                    "text": f"{dist_0:.0f} m",
-                                                    "title": f'<a href="https://globe.adsbexchange.com/?icao={adsb_id}" target="_blank">{sign}</a>'
-                                                }
-                                            }
-                                        ]
-                                        client.write_points(json_body)
-                                        logging.info(f'event written: icao={adsb_id}, callsign={sign}, dist={dist_0:.0f}m')
-                                    if lambda_ <= -20:
-                                        info[adsb_id]['flyover_detected'] = False
-                        update_info(adsb_id, 'last_coords', v1)
-                    elif data[1] == '1':
-                        update_info(adsb_id, 'callsign', data[10])
-                    elif data[1] == '6':
-                        update_info(adsb_id, 'squawk', data[17])
 
-                    # remove timed out entries
-                    timeout_keys = []
-                    now = time.time()
-                    for k, v in info.items():
-                        if (now-v['last_active'])>ICAO_TIMEOUT:
-                            timeout_keys.append(k)
-                    for adsb_id in timeout_keys:
-                        del info[adsb_id]
+
+                adsb_id = data['hex']
+                update_info(adsb_id, 'last_active', time.time())
+
+                # extract the longitude, latitude, and altitude
+                lon = data['lon']
+                lat = data['lat']
+                alt = data['alt_geom'] * 0.3048
+                # convert to xyz coordinates
+                xyz1 = xyz(lon, lat, alt)
+                v1 = xyz1 - xyz0
+                # calculate the distance between the two points
+                dist = np.linalg.norm(v1)
+                # calculate the distance in x-y plane
+                dist_xy = np.linalg.norm(xyz(lon, lat, lon_lat_alt[2])-xyz0)
+                # we look at a cylinder with given radius, height is ignored
+                if dist_xy < 5000:
+                    if 'last_coords' in info[adsb_id]:
+                        v0 = info[adsb_id]['last_coords']
+                        # TODO: scale d to seconds by dividing by time difference t1 - t0
+                        d = v1 - v0
+                        lambda_ = -np.dot(v0, d) / np.dot(d, d)
+                        dist_0 = np.linalg.norm(v0 + lambda_ * d)
+                        logging.info(f"{adsb_id}:    "
+                                        f"dist={dist:6.1f}   "
+                                        f"dist_0={dist_0:6.1f}   "
+                                        f"dist_xy={dist_xy:6.1f}   "
+                                        f"lambda={lambda_:6.1f}    FOD={info[adsb_id]['flyover_detected']}")
+                        if -5 < lambda_ < 0 and dist_0 < 3000 and not info[adsb_id]['flyover_detected']:
+                            update_info(adsb_id, 'flyover_detected', True)
+                            fields = { k: v for k, v in data.items() if k in ['hex', 'flight', 'r', 't', 'desc', 'rssi'] }
+                            fields['dist'] = dist_0
+                            fields['text'] = f"{dist_0:.0f} m"
+                            fields['title'] = f'<a href="https://globe.adsbexchange.com/?icao={adsb_id}" target="_blank">{fields["flight"]}</a>'
+                            
+                            json_body = [
+                                {
+                                    "measurement": args.measurement,
+                                    "tags": {
+                                        "type": "flyover"
+                                    },
+                                    "fields": fields
+                                }
+                            ]
+                            client.write_points(json_body)
+                            logging.info(f'event written: icao={adsb_id}, callsign={data['flight']}, dist={dist_0:.0f}m')
+                        if lambda_ <= -20:
+                            info[adsb_id]['flyover_detected'] = False
+                update_info(adsb_id, 'last_coords', v1)
+
+                # remove timed out entries
+                timeout_keys = []
+                now = time.time()
+                for k, v in info.items():
+                    if (now-v['last_active'])>ICAO_TIMEOUT:
+                        timeout_keys.append(k)
+                for adsb_id in timeout_keys:
+                    del info[adsb_id]
     except:
         pass
     time.sleep(1.)
