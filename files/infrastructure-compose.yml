@@ -98,6 +98,21 @@ services:
     depends_on:
       - influxdb
 
+  postgis:
+    image: postgis
+    container_name: postgis
+    restart: unless-stopped
+    environment:
+      - PGDATA=/data/postgres
+      - POSTGRES_PASSWORD=${ADMIN_PASSWORD}
+      - POSTGRES_USER=${ADMIN_USERNAME}
+    networks:
+      - network
+    ports:
+      - 5432:5432
+    volumes:
+      - ${DOCKER_EXTERNAL_ROOT}/postgres/data:/data/postgres
+
   telegraf:
     image: telegraf:latest
     container_name: telegraf

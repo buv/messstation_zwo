@@ -1,5 +1,5 @@
 ---
-- name: Copy files for docker image
+- name: Copy files for dfld_box docker image
   copy:
     src: "./files/dfld_box/"
     dest: "~/dfld_box"
@@ -10,5 +10,18 @@
     name: dfld_box
     build:
       path: "~/dfld_box"
+    source: build
+
+- name: Copy files for postgis docker image
+  copy:
+    src: "./files/postgis/"
+    dest: "~/postgis"
+    force: false
+
+- name: Build postgis image
+  community.docker.docker_image:
+    name: postgis
+    build:
+      path: "~/postgis"
     source: build
 
