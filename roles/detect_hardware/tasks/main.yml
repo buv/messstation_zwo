@@ -12,15 +12,7 @@
       ansible.builtin.set_fact:
         hw_conf: "{{ detect_hw_response.stdout | from_json }}"
 
-    - name: Print hardware setup
-      ansible.builtin.debug:
-        msg: "{{ hw_conf }}"
-
   rescue:
-    - name: Print error message
-      ansible.builtin.debug:
-        msg: "Hardware detection failed. Please check your hardware."
-
     - name: Set default hardware config
       ansible.builtin.set_fact:
         hw_conf:
@@ -29,7 +21,3 @@
           DFLD_LEGACY_AVAILABLE: 0
           DNMS_I2C_AVAILABLE: 0
           ADSB_AVAILABLE: 0
-
-    - name: Print default hardware setup
-      ansible.builtin.debug:
-        msg: "{{ hw_conf }}"

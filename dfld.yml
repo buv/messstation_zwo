@@ -25,19 +25,49 @@
     - role: configure-grafana
     - role: deploy_ingress_stack
       when: ansible_facts.architecture == 'aarch64'
-  
+
 
   post_tasks:
-    - name: Ready message
-      debug:
+    - name: Print error message in case of hardware detection failure
+      when: detect_hw_response.failed
+      ansible.builtin.debug:
         msg: 
           - ''
           - '------------------------------------------------------------------------------------------------------'
-          - 'DFLD Messstation ZWO is ready.'
+          - 'Hardware detection failed.'
+          - 'Please check requirements and your hardware.'
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+
+    - name: Ready message
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+          - 'DFLD Messstation ZWO is {{ (detect_hw_response.failed) | ternary("not", "") }} ready.'
+          - ''
           - 'You can access the portainer services at: https://{{ ansible_host }}:9443 / User: {{ portainer_user }} Password:{{ portainer_password }}'
           - 'You can access the grafana services at: https://{{ ansible_host }}:3000 / User: {{ grafana_user }} Password:{{ grafana_password }}'
           - 'You can access the influxdb services at: https://{{ ansible_host }}:8086 / User: {{ influxdb_user }} Password:{{ influxdb_password }}'
-          - 'Happy measuring!'
+          - ''
+          - '{{ (detect_hw_response.failed) | ternary("You may look around. But nothing will be measured.", "Happy measuring!") }}'
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+
+    - name: Print hardware setup
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - 'Hardware setup:'
+          - ''
+          - 'ADS-B Reciever detect: {{ (hw_conf.ADSB_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DFLD DNMS detect:      {{ (hw_conf.DFLD_DNMS_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DFLD_LEGACY detect:    {{ (hw_conf.DFLD_LEGACY_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DNMS_I2C detect:       {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'BME280 device detect:  {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("true", "false") }}'
           - '------------------------------------------------------------------------------------------------------'
           - ''
 
