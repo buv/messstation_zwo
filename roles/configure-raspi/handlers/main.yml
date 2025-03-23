@@ -1,0 +1,9 @@
+---
+
+- name: Reboot remote
+  ansible.builtin.file:
+    name: /var/run/reboot-required
+    owner: root
+    group: root
+    mode: '0644'
+    state: touch

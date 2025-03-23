@@ -1,0 +1,24 @@
+---
+
+- name: Check if admin account exists in Portainer
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/admin/check"
+    method: GET
+    validate_certs: false
+    status_code:
+      - 200
+      - 204
+      - 404
+  register: portainer_admin_user
+
+- name: Create admin account in Portainer
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/users/admin/init"
+    method: POST
+    body_format: json
+    validate_certs: false
+    headers:
+      Content-Type: "application/json"
+    body: '{"Username": "{{ portainer_user }}", "Password": "{{ portainer_password }}", "Role": 1}'
+    status_code: 200
+  when: portainer_admin_user.status != 204

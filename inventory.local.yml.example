@@ -1,0 +1,28 @@
+all:
+  vars:
+
+    dfld_user: "dfld"
+    dfld_group: "dfld"
+
+    dfld_dir: "/opt/dfld"
+
+    portainer_user: "{{ dfld_user }}"
+    portainer_password: "supersexysecret"
+
+    grafana_user: "{{ dfld_user }}"
+    grafana_password: "supersexysecret"
+
+    influxdb_user: "{{ dfld_user }}"
+    influxdb_password: "supersexysecret"
+
+    postgis_user: "{{ dfld_user }}"
+    postgis_password: "supersexysecret"
+
+    # ansible user and sudo password for the remote host
+    ansible_connection: local
+    # ansible_sudo_pass: "supersexysecret"
+
+  children:
+    messstation:
+      hosts:
+        localhost:

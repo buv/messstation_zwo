@@ -1,3 +1,4 @@
 #!/bin/bash
 
-ansible-playbook --connection=local --inventory localhost, dfld.yml 
+ansible-galaxy role install -r requirements.yml -p ./roles
+./dfld.yml --inventory inventory.local.yml

@@ -1,0 +1,22 @@
+---
+
+- name: Create Group
+  ansible.builtin.group:
+    name: "{{ dfld_group }}"
+    state: present
+
+- name: Create User
+  ansible.builtin.user:
+    name: "{{ dfld_user }}"
+    group: "{{ dfld_group }}"
+    shell: /bin/bash
+    state: present
+
+- name: Create a directory for portainer and all DFLD data
+  become: true
+  ansible.builtin.file:
+    name: "{{ dfld_dir }}"
+    owner: "{{ dfld_user }}"
+    group: "{{ dfld_user }}"
+    mode: "0750"
+    state: directory

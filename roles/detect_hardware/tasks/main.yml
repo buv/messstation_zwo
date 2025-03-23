@@ -1,0 +1,35 @@
+---
+
+- name: Detect hardware on Raspberry Pi
+  # when: ansible_facts.architecture == 'aarch64'
+  block:
+    - name: Run hardware detection in docker container
+      ansible.builtin.command: docker run --rm --privileged dfld_box python detect_hw.py
+      register: detect_hw_response
+      changed_when: false
+
+    - name: Extract hardware config to json fact
+      ansible.builtin.set_fact:
+        hw_conf: "{{ detect_hw_response.stdout | from_json }}"
+
+    - name: Print hardware setup
+      ansible.builtin.debug:
+        msg: "{{ hw_conf }}"
+
+  rescue:
+    - name: Print error message
+      ansible.builtin.debug:
+        msg: "Hardware detection failed. Please check your hardware."
+
+    - name: Set default hardware config
+      ansible.builtin.set_fact:
+        hw_conf:
+          BME280_AVAILABLE: 0
+          DFLD_DNMS_AVAILABLE: 0
+          DFLD_LEGACY_AVAILABLE: 0
+          DNMS_I2C_AVAILABLE: 0
+          ADSB_AVAILABLE: 0
+
+    - name: Print default hardware setup
+      ansible.builtin.debug:
+        msg: "{{ hw_conf }}"

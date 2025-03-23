@@ -1,0 +1,66 @@
+---
+- name: Get Auth token
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/auth"
+    method: POST
+    body_format: json
+    validate_certs: false
+    headers:
+      Content-Type: "application/json"
+    body: '{"Username": "{{ portainer_user }}", "Password": "{{ portainer_password }}"}'
+    status_code: 200
+  register: portainer_auth
+
+- name: Get list of endpoints
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/endpoints?name=local&excludeSnapshots=true"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+    status_code:
+      - 200
+      - 204
+  register: portainer_endpoints
+
+- name: Set portainer endpoint data
+  ansible.builtin.set_fact:
+    portainer_endpoint_data: "{{ portainer_endpoints.json[0] }}"
+  when: portainer_endpoints.json|length>0
+
+- name: Create local endpoint, if not exists
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/endpoints"
+    method: POST
+    body_format: form-multipart
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+    body:
+      Name: "local"
+      EndpointCreationType: "1"
+      URL: "unix:///var/run/docker.sock"
+    status_code: 200
+  register: this
+  when: portainer_endpoints.json|length==0
+
+- name: Set portainer endpoint data from newly created endpoint
+  ansible.builtin.set_fact:
+    portainer_endpoint_data: "{{ this.json }}"
+  when: portainer_endpoints.json|length==0
+
+- name: Get list of stacks
+  ansible.builtin.uri:
+    url: "https://localhost:9443/api/stacks"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+    status_code:
+      - 200
+      - 204
+  register: portainer_stacks
+
+- name: List stacks
+  ansible.builtin.debug:
+    var: portainer_stacks.json|map(attribute='Name')

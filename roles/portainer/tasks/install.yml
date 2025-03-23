@@ -1,0 +1,23 @@
+---
+
+- name: Installing Portainer
+  community.docker.docker_container:
+    name: portainer
+    image: portainer/portainer-ce:lts
+    state: started
+    restart_policy: "always"
+    ports:
+      - "8000:8000"
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    env:
+      logo: "https://www.dfld.de/Basics/images/Logo-DFLD.svg"
+
+- name: Wait for Portainer to start
+  ansible.builtin.wait_for:
+    host: localhost
+    port: 9443
+    # delay: 5
+    timeout: 60

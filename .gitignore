@@ -1,0 +1,10 @@
+.vscode
+inventory_*
+inventory.yml
+ansible.cfg
+roles/geerlingguy.*
+*.retry
+*.pyc
+*.log
+__pycache__/
+*.vault

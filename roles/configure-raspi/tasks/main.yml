@@ -1,0 +1,14 @@
+---
+
+- name: Configure User
+  ansible.builtin.include_tasks:
+    file: user.yml
+
+- name: Configure OS
+  ansible.builtin.include_tasks:
+    file: os.yml
+
+- name: Configure Hardware
+  ansible.builtin.include_tasks:
+    file: hardware.yml
+  when: ansible_facts.architecture == 'aarch64'

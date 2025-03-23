@@ -1,0 +1,17 @@
+---
+
+- name: Get I2C status
+  ansible.builtin.command: "raspi-config nonint get_i2c"
+  register: i2c_status
+  changed_when: false
+
+- name: Print I2C status
+  ansible.builtin.debug:
+    msg: "I2C status is: {{ i2c_status.stdout }}"
+
+- name: Enable I2C
+  become: true
+  ansible.builtin.command: "raspi-config nonint do_i2c 0"
+  when: i2c_status.stdout != '0'
+  notify: Reboot remote
+  changed_when: false

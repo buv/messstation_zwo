@@ -1,0 +1,13 @@
+---
+
+- name: Install Portainer
+  ansible.builtin.include_tasks:
+    file: install.yml
+
+- name: Create Portainer admin user
+  ansible.builtin.include_tasks:
+    file: create-admin-user.yml
+
+- name: Configure Portainer
+  ansible.builtin.include_tasks:
+    file: configure.yml
