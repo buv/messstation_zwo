@@ -1,4 +1,19 @@
 services:
+  postgis:
+    image: postgis
+    container_name: postgis
+    restart: unless-stopped
+    environment:
+      - PGDATA=/data/postgres
+      - POSTGRES_USER=${POSTGRES_ADMIN_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+    networks:
+      - network
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/data/postgres
+
   ultrafeeder:
     image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
     # Note - if you want to enable telegraf for use with InfluxDB/Prometheus and Grafana,
@@ -36,7 +51,7 @@ services:
       - TAR1090_DEFAULTCENTERLAT=${LAT}
       - TAR1090_DEFAULTCENTERLON=${LON}
       - TAR1090_MESSAGERATEINTITLE=true
-      - TAR1090_PAGETITLE=${ADMIN_USERNAME}
+      - TAR1090_PAGETITLE=DFLD
       - TAR1090_PLANECOUNTINTITLE=true
       - TAR1090_ENABLE_AC_DB=true
       - TAR1090_FLIGHTAWARELINKS=true
@@ -85,7 +100,7 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ}
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
     user: ${UID}:${GID}
     ports:
@@ -97,6 +112,7 @@ services:
       - grafana-provisioning:/etc/grafana/provisioning
     depends_on:
       - influxdb
+      - postgis
 
   telegraf:
     image: telegraf:latest
@@ -120,21 +136,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - influxdb
-
-  postgis:
-    image: postgis
-    container_name: postgis
-    restart: unless-stopped
-    environment:
-      - PGDATA=/data/postgres
-      - POSTGRES_USER=${POSTGIS_USER}
-      - POSTGRES_PASSWORD=${POSTGIS_PASSWORD}
-    networks:
-      - network
-    ports:
-      - 5432:5432
-    volumes:
-      - postgres-data:/data/postgres
 
 volumes:
   ultrafeeder-globe_history:

@@ -1,30 +1,44 @@
 all:
   vars:
 
+    station_lon: "0.0"
+    station_lat: "0.0"
+    station_alt: "0.0"
+
     dfld_user: "dfld"
     dfld_group: "dfld"
 
     dfld_dir: "/opt/dfld"
 
-    portainer_user: "{{ dfld_user }}"
-    portainer_password: "supersexysecret"
+    portainer_username: "{{ dfld_user }}"
+    portainer_password: "{{ dfld_user }}{{ dfld_user }}{{ dfld_user }}"
 
-    grafana_user: "{{ dfld_user }}"
-    grafana_password: "supersexysecret"
+    grafana_username: "{{ dfld_user }}"
+    grafana_password: "{{ dfld_user }}"
 
-    influxdb_user: "{{ dfld_user }}"
-    influxdb_password: "supersexysecret"
+    influxdb_username: "{{ dfld_user }}"
+    influxdb_password: "{{ dfld_user }}"
 
-    postgis_user: "{{ dfld_user }}"
-    postgis_password: "supersexysecret"
+    postgres_username: "{{ dfld_user }}"
+    postgres_password: "{{ dfld_user }}"
+    postgres_database: "dfld"
 
-    # ansible user and sudo password for the remote host
-    ansible_user: ansible
-    ansible_sudo_pass: "supersexysecret"
-    # ansible_ssh_pass: "supersexysecret"
+    #
+    # ansible part
+    #
+    ansible_sudo_pass: "{{ dfld_user }}"
+
+    # ansible user and ssh password for the remote host
+    ansible_user: "{{ dfld_user }}"
+    ansible_ssh_pass: "{{ dfld_user }}"
+
+    # or
+
+    # ansible_connection: local
+
 
   children:
     messstation:
       hosts:
-        dfld_raspi.example.com:
+        dfld-raspi.example.com:
 

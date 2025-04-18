@@ -20,14 +20,27 @@
   community.grafana.grafana_datasource:
     name: "influxdb"
     grafana_url: "http://localhost:3000/"
-    grafana_user: "{{ grafana_user }}"
+    grafana_user: "{{ grafana_username }}"
     grafana_password: "{{ grafana_password }}"
-    user: "{{ influxdb_user }}"
+    user: "{{ influxdb_username }}"
     password: "{{ influxdb_password }}"
     ds_type: "influxdb"
     ds_url: "http://influxdb:8086/"
     database: "dfld"
     uid: "cectojnfyi3ggd"
+
+- name: Create postgres datasource
+  community.grafana.grafana_datasource:
+    name: "postgres"
+    grafana_url: "http://localhost:3000/"
+    grafana_user: "{{ grafana_username }}"
+    grafana_password: "{{ grafana_password }}"
+    user: "{{ postgres_username }}"
+    password: "{{ postgres_password }}"
+    ds_type: "postgres"
+    ds_url: "postgis:5432"
+    database: "dfld"
+    uid: "degnp01h2dnuof"
 
 - name: Copy dashboard file to remote host
   ansible.builtin.copy:
@@ -40,7 +53,7 @@
 - name: Import Grafana dashboard
   community.grafana.grafana_dashboard:
     grafana_url: "http://localhost:3000/"
-    url_username: "{{ grafana_user }}"
+    url_username: "{{ grafana_username }}"
     url_password: "{{ grafana_password }}"
     state: present
     commit_message: Updated by ansible
@@ -55,9 +68,9 @@
   community.grafana.grafana_datasource:
     name: "influxdb-system"
     grafana_url: "http://localhost:3000/"
-    grafana_user: "{{ grafana_user }}"
+    grafana_user: "{{ grafana_username }}"
     grafana_password: "{{ grafana_password }}"
-    user: "{{ influxdb_user }}"
+    user: "{{ influxdb_username }}"
     password: "{{ influxdb_password }}"
     ds_type: "influxdb"
     ds_url: "http://influxdb:8086/"
@@ -75,7 +88,7 @@
 - name: Import Grafana dashboard
   community.grafana.grafana_dashboard:
     grafana_url: "http://localhost:3000/"
-    url_username: "{{ grafana_user }}"
+    url_username: "{{ grafana_username }}"
     url_password: "{{ grafana_password }}"
     state: present
     commit_message: Updated by ansible

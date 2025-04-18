@@ -3,3 +3,5 @@ pyserial==3.5
 numpy==2.2.3
 smbus3==0.5.5
 RPi.bme280==0.2.4
+psycopg2-binary==2.9.10
+uuid==1.30

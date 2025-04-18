@@ -14,9 +14,9 @@
   ansible.builtin.set_fact:
     compose_yaml: "{{ lookup('template', 'infrastructure-compose.yml.j2') | from_yaml }}"
 
-- name: Remove dump1090, if no hardware found
+- name: Remove adsb software, if no hardware found
   ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml | ansible.utils.remove_keys(target=['dump1090']) }}"
+    compose_yaml: "{{ compose_yaml | ansible.utils.remove_keys(target=['ultrafeeder']) }}"
   when: hw_conf["ADSB_AVAILABLE"] == 0
 
 - name: Deploy stack infrastructure, if not exists

@@ -47,6 +47,7 @@ def read_line(s, c):
     # summary processing
     if data_str[0]=='S':
         fields = { f'dB_{data_str[1]}_{str(k)}': float(v) for k, v in zip(['avg', 'min', 'max'], data_str[2:]) }
+        fields_lin = { k+'_lin': 10**(v/10.) for k, v in fields.items() }
 
     if fields:
         # send data to influx DB
@@ -56,7 +57,7 @@ def read_line(s, c):
                 "tags": {
                     "device": args.device_name,
                 },
-                "fields": fields
+                "fields": fields | fields_lin
             }
         ]
         logging.debug(f'data written: weigth=dB{data_str[1]}, device={args.device_name}, {fields}')

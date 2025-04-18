@@ -1,0 +1,83 @@
+---
+# ping postgresql
+- name: Ping postgres
+  community.postgresql.postgresql_info:
+    login_host: "127.0.0.1"
+    login_user: "{{ postgres_username }}"
+    login_password: "{{ postgres_password }}"
+    filter: ver*,ext*
+  register: postgres_info
+  until: postgres_info is not failed
+  retries: 5
+
+- debug:
+    msg: "Postgres version: {{ postgres_info.versions[0].version }}"
+  when: postgres_info.versions is defined
+- debug:
+    msg: "Postgres extensions: {{ postgres_info.extensions }}"
+  when: postgres_info.extensions is defined
+
+# create database
+- name: Create database
+  become: yes
+  postgresql_db:
+    name: "{{ postgres_database }}"
+    state: present
+    login_host: "127.0.0.1"
+    login_user: "{{ postgres_username }}"
+    login_password: "{{ postgres_password }}"
+    port: 5432
+
+# install postgis extension
+- name: Install postgis extension
+  become: yes
+  postgresql_ext:
+    name: postgis
+    db: "{{ postgres_database }}"
+    state: present
+    login_host: "127.0.0.1"
+    login_user: "{{ postgres_username }}"
+    login_password: "{{ postgres_password }}"
+    port: 5432
+
+# create table event_raw
+- name: Create table event_raw
+  community.postgresql.postgresql_table:
+    db: "{{ postgres_database }}"
+    state: present
+    login_host: "127.0.0.1"
+    login_user: "{{ postgres_username }}"
+    login_password: "{{ postgres_password }}"
+    port: 5432
+    name: event_raw
+    columns:
+      - uuid UUID primary key
+      - eventtime TIMESTAMP
+      - dist FLOAT8
+      - hex VARCHAR
+      - flight VARCHAR
+      - r VARCHAR
+      - t VARCHAR
+      - descr VARCHAR
+      - rssi FLOAT8
+
+# create table trajectory
+- name: Create table trajectory
+  community.postgresql.postgresql_table:
+    db: "{{ postgres_database }}"
+    state: present
+    login_host: "127.0.0.1"
+    login_user: "{{ postgres_username }}"
+    login_password: "{{ postgres_password }}"
+    port: 5432
+    name: trajectory
+    columns:
+      - uuid UUID primary key
+      - icao VARCHAR(6)
+      - t0 FLOAT8
+      - min_dist FLOAT8
+      - geom GEOMETRY(LINESTRINGZM)
+      - rssi FLOAT8[]
+      - alt_geom FLOAT8[]
+      - alt_baro FLOAT8[]
+      - timestamps FLOAT8[]

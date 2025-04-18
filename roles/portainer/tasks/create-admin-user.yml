@@ -19,6 +19,6 @@
     validate_certs: false
     headers:
       Content-Type: "application/json"
-    body: '{"Username": "{{ portainer_user }}", "Password": "{{ portainer_password }}", "Role": 1}'
+    body: '{"Username": "{{ portainer_username }}", "Password": "{{ portainer_password }}", "Role": 1}'
     status_code: 200
   when: portainer_admin_user.status != 204
