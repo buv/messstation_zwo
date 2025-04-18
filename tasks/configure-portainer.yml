@@ -103,9 +103,9 @@
   set_fact:
     compose_yaml: "{{ lookup('file', 'files/infrastructure-compose.yml')|from_yaml }}"
 
-- name: Remove dump1090, if no hardware found
+- name: Remove adsb software, if no hardware found
   ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['dump1090']) }}"
+    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['ultrafeeder']) }}"
   when: hw_conf["ADSB_AVAILABLE"]==0
 
 - name: Deploy stack infrastructure, if not exists
@@ -123,7 +123,9 @@
     timeout: 300
     status_code: 200
   when: "'infrastructure' not in portainer_stacks.json|map(attribute='Name')"
-  
+
+# TODO: Split the following into a separate task file 
+#       and execute after the database tables are created
 #
 # create ingress stack
 #

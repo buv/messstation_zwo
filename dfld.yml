@@ -9,4 +9,5 @@
     - import_tasks: tasks/detect-hardware.yml
     - import_tasks: tasks/install-portainer.yml
     - import_tasks: tasks/configure-portainer.yml
+    - import_tasks: tasks/configure-postgres.yml
     - import_tasks: tasks/configure-grafana.yml

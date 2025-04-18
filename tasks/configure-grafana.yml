@@ -28,6 +28,19 @@
     database: "dfld"
     uid: "cectojnfyi3ggd"
 
+- name: Create postgres datasource
+  community.grafana.grafana_datasource:
+    name: "postgres"
+    grafana_url: "http://localhost:3000/"
+    grafana_user: "{{ ansible_env.USER }}"
+    grafana_password: "{{ ansible_env.USER }}"
+    user: "{{ ansible_env.USER }}"
+    password: "{{ ansible_env.USER }}"
+    ds_type: "postgres"
+    ds_url: "postgis:5432"
+    database: "dfld"
+    uid: "degnp01h2dnuof"
+
 - name: Copy dashboard file to remote host
   copy:
     src: files/grafana-dfld.json

@@ -5,7 +5,7 @@
   postgresql_db:
     name: "{{ ansible_env.USER }}"
     state: present
-    login_host: "10.2.1.42"
+    login_host: "127.0.0.1"
     login_user: "{{ ansible_env.USER }}"
     login_password: "{{ ansible_env.USER }}"
     port: 5432
@@ -17,7 +17,49 @@
     name: postgis
     db: "{{ ansible_env.USER }}"
     state: present
-    login_host: "10.2.1.42"
+    login_host: "127.0.0.1"
     login_user: "{{ ansible_env.USER }}"
     login_password: "{{ ansible_env.USER }}"
     port: 5432
+
+# create table event_raw
+- name: Create table event_raw
+  community.postgresql.postgresql_table:
+    db: "{{ ansible_env.USER }}"
+    state: present
+    login_host: "127.0.0.1"
+    login_user: "{{ ansible_env.USER }}"
+    login_password: "{{ ansible_env.USER }}"
+    port: 5432
+    name: event_raw
+    columns:
+      - uuid UUID primary key
+      - eventtime TIMESTAMP
+      - dist FLOAT8
+      - hex VARCHAR
+      - flight VARCHAR
+      - r VARCHAR
+      - t VARCHAR
+      - descr VARCHAR
+      - rssi FLOAT8
+
+# create table trajectory
+- name: Create table trajectory
+  community.postgresql.postgresql_table:
+    db: "{{ ansible_env.USER }}"
+    state: present
+    login_host: "127.0.0.1"
+    login_user: "{{ ansible_env.USER }}"
+    login_password: "{{ ansible_env.USER }}"
+    port: 5432
+    name: trajectory
+    columns:
+      - uuid UUID primary key
+      - icao VARCHAR(6)
+      - t0 FLOAT8
+      - min_dist FLOAT8
+      - geom GEOMETRY(LINESTRINGZM)
+      - rssi FLOAT8[]
+      - alt_geom FLOAT8[]
+      - alt_baro FLOAT8[]
+      - timestamps FLOAT8[]
