@@ -4,4 +4,15 @@
   become: true
   reboot:
     reboot_timeout: 120
+  when: inventory_hostname != '127.0.0.1'
 
+- name: Reboot locally
+  become: true
+  shell: "sleep 5 && reboot"
+  async: 1
+  poll: 0
+  when: inventory_hostname == '127.0.0.1'
+
+- name: Please rerun skript after reboot
+  meta: end_play
+  when: inventory_hostname == '127.0.0.1'

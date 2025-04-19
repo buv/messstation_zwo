@@ -1,7 +1,7 @@
 #!/usr/bin/env ansible-playbook
 
 - name: Setup DFLD Messstation ZWO on Raspberry Pi
-  hosts: messstation
+  hosts: all
   gather_facts: true
   become: true
 
@@ -19,7 +19,6 @@
     - role: configure-postgres
     - role: configure-grafana
     - role: deploy_ingress_stack
-      when: ansible_facts.architecture == 'aarch64'
 
 
   post_tasks:

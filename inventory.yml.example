@@ -27,18 +27,6 @@ all:
     # ansible part
     #
     ansible_sudo_pass: "{{ dfld_user }}"
-
-    # ansible user and ssh password for the remote host
     ansible_user: "{{ dfld_user }}"
     ansible_ssh_pass: "{{ dfld_user }}"
-
-    # or
-
-    # ansible_connection: local
-
-
-  children:
-    messstation:
-      hosts:
-        dfld-raspi.example.com:
 
