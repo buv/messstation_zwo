@@ -13,5 +13,7 @@
   become: true
   ansible.builtin.command: "raspi-config nonint do_i2c 0"
   when: i2c_status.stdout != '0'
-  notify: Reboot remote
+  notify: 
+    - Reboot remote
+    - Reboot locally
   changed_when: false
