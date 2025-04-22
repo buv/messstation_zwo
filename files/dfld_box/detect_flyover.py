@@ -162,7 +162,8 @@ class Trajectory:
         self.pool.postgres_pool.putconn(conn, close=True)
 
     def dump_trajectory(self):
-        if len(self.traj) > 0:
+        # trajectory must have more than 1 point
+        if len(self.traj) > 1:
             # create GDAL xyzm geometry crs WGS84
             geom = "SRID=4326;LINESTRING ZM ("
             for t in self.traj:
