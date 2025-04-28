@@ -1,4 +1,76 @@
+import os
+import time
 import codecs
+import socket
+import logging
+
+class LiveView:
+    """
+    Class to send live data to the DFLD server.
+    """
+
+    def __init__(self):
+        """
+        Initialize the LiveView class.
+        :param server: server address
+        :param port: server port
+        """
+
+        self.active = False
+        self.server = None
+        self.port = None
+        self.socket = None
+        self.data = None
+        self.cksum = None
+
+        required_env = ['DFLD_LIVEVIEW', 'DFLD_REGION', 'DFLD_STATION', 'DFLD_CKSUM']
+        if all(k in os.environ for k in required_env):
+            server_param = os.environ['DFLD_LIVEVIEW'].split(':')
+            if len(server_param) == 2:
+                self.server = server_param[0]
+                self.port = int(server_param[1])
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+                self.cksum = int(os.environ['DFLD_CKSUM'])
+
+                # convert the data to bytes from 2-byte integers
+                self.data = bytearray()
+                self.data.extend(int(1).to_bytes(2, byteorder='big')) # version
+                self.data.extend(int(0).to_bytes(2, byteorder='big')) # customer
+                self.data.extend(int(os.environ['DFLD_REGION']).to_bytes(2, byteorder='big')) # region
+                self.data.extend(int(os.environ['DFLD_STATION']).to_bytes(2, byteorder='big')) # station
+                # append timestamp of now to the data
+                self.data.extend(int(time.time()).to_bytes(4, byteorder='big'))
+                self.data.extend(b'AS')
+                # append dBA value * 128
+                self.data.extend(int(0*128).to_bytes(2, byteorder='big'))
+                self.data.extend(int(0).to_bytes(2, byteorder='big')) # status
+                # append CRC value
+                crc = calc_crc(self.data, self.cksum)
+                self.data.extend(crc.to_bytes(2, byteorder='big'))
+
+                self.active = True
+                logging.info(f'LiveView active: {self.server}:{self.port}')
+
+
+    def send(self, value):
+        """
+        Send data to the DFLD server.
+        :param data: data to send
+        """
+        if self.active and self.socket:
+            # write timestamp to data
+            self.data[8:12] = int(time.time()).to_bytes(4, byteorder='big')
+            # write value to data
+            self.data[14:16] = int(value * 128).to_bytes(2, byteorder='big')
+            # write CRC to data
+            crc = calc_crc(self.data[0:18], self.cksum)
+            self.data[18:20] = crc.to_bytes(2, byteorder='big')
+
+            # send the data to the server
+            self.socket.sendto(self.data, (self.server, self.port))
+            logging.debug(f'LiveView data sent: {self.data.hex()}')
+
 
 # encode a string from clear text to obfuscated text
 def obfuscate_string(string):

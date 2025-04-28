@@ -37,11 +37,12 @@ def delta_t(t1_str, t2_datetime):
     return delta.total_seconds()
 
 
-def map_one_day(start_date, res):
+def map_one_day(start_date, res, full_transfer):
     """
     map one day of data from influxdb to a 1Hz data array
     :param start_date: start date of the day
     :param res: result from influxdb query
+    :param full_transfer: if True, transfer all data from yesterday
     :return: data array with 1Hz data
     """
     
@@ -51,12 +52,19 @@ def map_one_day(start_date, res):
         return None
     
     # fill data array for one day
-    n_day = 86400
+    src = res.raw['series'][0]['values']
     t0 = start_date
+
+    if full_transfer:
+        n_day = 86400
+    else:
+        # calculate the number of seconds from start date to last measurement
+        last_time = datetime.datetime.fromisoformat(src[-1][0])
+        n_day = int((last_time - t0).total_seconds()) + 1    
+
+    n_src = len(src)
     dst_idx = 0
     src_idx = 0
-    src = res.raw['series'][0]['values']
-    n_src = len(src)
     times = [0] * n_src
     values = [0] * n_src
     data = [0] * n_day
@@ -79,16 +87,20 @@ def map_one_day(start_date, res):
     return data
 
 
-def get_data(date_str):
+def get_data(now_dt, full_transfer):
     """
     get data from influxdb v1
-    :param date_str: date string in format YYYY-MM-DD
+    :param now_dt: datetime object
+    :param full_transfer: if True, transfer all data from yesterday
     :return: bytearray with data
     """
-    # check if date_str is valid
-    if not re.search(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        logging.error('invalid date string: %s', date_str)
-        return None
+    
+    # if full_transfer is True, set date_str to yesterday
+    if full_transfer:
+        yesterday = now_dt - datetime.timedelta(days=1)
+        date_str = yesterday.strftime('%Y-%m-%d')
+    else:
+        date_str = now_dt.strftime('%Y-%m-%d')
 
     # create connection to influxdb v1
     logging.info('connecting to influx database (%s)...', os.environ["INFLUXDB_SERVER"])
@@ -101,14 +113,14 @@ def get_data(date_str):
     )
     logging.debug('client=%s', client)
     client.switch_database(os.environ["INFLUXDB_DATABASE"])
-    logging.info('switched to database "%s"', os.environ["INFLUXDB_DATABASE"])
+    logging.debug('switched to database "%s"', os.environ["INFLUXDB_DATABASE"])
 
     # read one day of data from influxdb v1
     # local time zone calculation is done by database
     tz = os.environ['TZ']
     query = (f"SELECT dB_A_avg FROM dnms_serial WHERE "
-             f"time >= ('{date_str}' - 86401s) AND "
-             f"time < '{date_str}' "
+             f"time >= ('{date_str}' -     1s) AND "
+             f"time <  ('{date_str}' + 86400s) "
              f"tz('{tz}')")
     logging.debug('SQL query: %s', query)
     result = client.query(query)
@@ -117,11 +129,10 @@ def get_data(date_str):
     # manual calculation of local timezone for postgresql
     # set local time zone 
     local_tz = pytz.timezone(tz)
-    today = datetime.datetime.strptime(date_str, '%Y-%m-%d')
-    today_start = local_tz.localize(today).astimezone(pytz.utc)
-    yesterday_start = today_start - datetime.timedelta(days=1)
+    day = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+    day_start = local_tz.localize(day).astimezone(pytz.utc)
 
-    data = map_one_day(yesterday_start, result)
+    data = map_one_day(day_start, result, full_transfer)
     bb = None
     if data:
         bb = bytearray(data)
@@ -135,43 +146,42 @@ def check_for_transfer():
 
     # set date of transfer day
     now_dt = datetime.datetime.now()
-    today_str = now_dt.strftime('%Y-%m-%d')
     yesterday_str = (now_dt - datetime.timedelta(days=1)).strftime('%Y%m%d')
-    ftp_filename = f"{int(os.environ['DFLD_CKSUM']):04x}-{int(os.environ['DFLD_REGION']):03d}-{yesterday_str}-{int(os.environ['DFLD_STATION']):03d}.wwx"
-
-    logging.info('processing %s...', yesterday_str)
 
     # transfer is due, if last transfer date is before yesterday
-    transfer_due = True
+    full_transfer_due = True
     if pathlib.Path(last_transfer_filename).is_file():
         with open(last_transfer_filename, mode="r", encoding="utf-8") as f:
             last_transfer_date_str = f.readline().rstrip()
             if re.search(r'^\d{8}$', last_transfer_date_str) and last_transfer_date_str >= yesterday_str:
-                transfer_due = False
+                full_transfer_due = False
     else:
         # do not transfer if last transfer date is not set,
         # but initialize instead
         with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
              print(yesterday_str, file=f)
         logging.info('last transfer date set to %s', yesterday_str)
-        transfer_due = False
+        full_transfer_due = False
 
-    if transfer_due:
-        buf = get_data(today_str)
+    day_str = yesterday_str if full_transfer_due else now_dt.strftime('%Y%m%d')
+    logging.info('processing %s fullday=%s ...', day_str, full_transfer_due)
+    ftp_filename = f"{int(os.environ['DFLD_CKSUM']):04x}-{int(os.environ['DFLD_REGION']):03d}-{day_str}-{int(os.environ['DFLD_STATION']):03d}.wwx"
 
-        if buf and len(buf) > 0:
-            logging.info('transfering data for %s via ftp...', yesterday_str)
-            ftp_dst = deobfuscate_string(os.environ['DFLD_LEGACY']).split(':')
-            ftp = ftplib.FTP()
-            ftp.connect(ftp_dst[0], int(ftp_dst[1]))
-            ftp.login(ftp_dst[2], ftp_dst[3])
+    buf = get_data(now_dt, full_transfer_due)
+    if buf and len(buf) > 0:
+        logging.info('transfering %s bytes of data to file %s via ftp...', len(buf), ftp_filename)
+        ftp_dst = deobfuscate_string(os.environ['DFLD_LEGACY']).split(':')
+        ftp = ftplib.FTP()
+        ftp.connect(ftp_dst[0], int(ftp_dst[1]))
+        ftp.login(ftp_dst[2], ftp_dst[3])
 
-            with io.BytesIO(buf) as f:
-                ftp.storbinary(f'STOR {ftp_filename}', f)
-        
-            ftp.quit()
+        with io.BytesIO(buf) as f:
+            ftp.storbinary(f'STOR {ftp_filename}', f)
+    
+        ftp.quit()
+        if full_transfer_due:
             with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
-                print(yesterday_str, file=f)
+                print(day_str, file=f)
 
 while True:
     check_for_transfer()

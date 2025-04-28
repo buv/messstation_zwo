@@ -1,10 +1,12 @@
 import os
 import sys
 import time
+import socket
 import logging
 import argparse
 import serial
 from influxdb import InfluxDBClient
+from dfld_common import LiveView
 
 level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO 
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
@@ -35,11 +37,12 @@ band_freq = [20,   25,   31.5, 40,   50,   63,   80,   100,   125,   160,
              2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 
              20000]
 
-def read_line(s, c):
+def read_line(s, c, lv):
     line = s.readline()
     data_str = line.rstrip().decode('utf-8').split(':')
 
     fields = None
+    fields_lin = None
     # band processing
     if data_str[0]=='B':
         fields = { f'L{data_str[1]}eq'+str(k): float(v) for k, v in zip(band_freq, data_str[2:]) }
@@ -62,10 +65,18 @@ def read_line(s, c):
         ]
         logging.debug(f'data written: weigth=dB{data_str[1]}, device={args.device_name}, {fields}')
         c.write_points(json_body)
+        
+        # send data to liveview
+        if data_str[0]=='S' and data_str[1]=='A':
+            # send data to liveview
+            lv.send(float(fields['dB_A_avg']))
+            logging.debug(f'liveview data sent: {fields["dB_A_avg"]} dBA')
 
 
 while True:
     try:
+        liveview = LiveView()
+        
         # create connection to influxdb v1
         logging.info(f'connecting to influx database ({args.influxdb_server})...')
         influxdb_server = args.influxdb_server.split(':')
@@ -79,7 +90,7 @@ while True:
         logging.info(f'connected to device: {args.device}')
 
         while True:
-            read_line(ser, client)
+            read_line(ser, client, liveview)
             time.sleep(0.01)
     except:
         pass
