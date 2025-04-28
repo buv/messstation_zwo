@@ -8,7 +8,7 @@
 
 - name: Read infrastructure env file
   ansible.builtin.set_fact:
-    compose_env: "{{ dict(lookup('template', 'compose.env.j2').split() | map('split', '=')) }}"
+    compose_env: "{{ dict(lookup('template', 'compose.env.j2').split() | map('split', '=', 1)) }}"
 
 - name: Read infrastructure yml compose file
   ansible.builtin.set_fact:

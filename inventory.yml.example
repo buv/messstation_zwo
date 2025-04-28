@@ -5,6 +5,12 @@ all:
     station_lat: "0.0"
     station_alt: "0.0"
 
+    dfld_region: ""
+    dfld_station: ""
+    dfld_cksum: ""
+    dfld_liveview: ""
+    dfld_legacy: ""
+
     dfld_user: "dfld"
     dfld_group: "dfld"
 
