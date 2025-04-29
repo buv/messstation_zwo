@@ -67,7 +67,7 @@ def map_one_day(start_date, res, full_transfer):
     src_idx = 0
     times = [0] * n_src
     values = [0] * n_src
-    data = [0] * n_day
+    data = [0] * 86400
     for idx, v in enumerate(src):
         times[idx] = datetime.datetime.fromisoformat(v[0])
         val = round(v[1])
