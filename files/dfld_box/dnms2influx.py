@@ -66,8 +66,8 @@ def read_line(s, c, lv):
         logging.debug(f'data written: weigth=dB{data_str[1]}, device={args.device_name}, {fields}')
         c.write_points(json_body)
         
-        # send data to liveview
-        if data_str[0]=='S' and data_str[1]=='A':
+        # check if liveview is active
+        if data_str[0]=='S' and data_str[1]=='A' and lv.active:
             # send data to liveview
             lv.send(float(fields['dB_A_avg']))
             logging.debug(f'liveview data sent: {fields["dB_A_avg"]} dBA')

@@ -5,6 +5,7 @@ import logging
 import argparse
 import serial
 from influxdb import InfluxDBClient
+from dfld_common import LiveView
 
 level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO 
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
@@ -28,7 +29,7 @@ args = parser.parse_args()
 logging.info(args)
 
 
-def read_line(s, c):
+def read_line(s, c, lv):
     b = int.from_bytes(s.read(1))
     if b>0:
         data = (b-50)/2
@@ -48,8 +49,16 @@ def read_line(s, c):
         c.write_points(json_body)
         logging.debug(f'data written: avg={data:.2f}')
 
+        # send data to liveview
+        if lv.active:
+            lv.send(data)
+            logging.debug(f'liveview data sent: {data:.2f} dBA')
+
+
 while True:
     try:
+        liveview = LiveView()
+
         # create connection to influxdb v1
         logging.info(f'connecting to influx database ({args.influxdb_server})...')
         influxdb_server = args.influxdb_server.split(':')
@@ -63,7 +72,7 @@ while True:
         logging.info(f'connected to device: {args.device}')
 
         while True:
-            read_line(ser, client)
+            read_line(ser, client, liveview)
             time.sleep(0.01)
 
     except:

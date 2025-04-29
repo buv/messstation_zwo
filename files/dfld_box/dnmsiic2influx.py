@@ -6,7 +6,7 @@ import logging
 import argparse
 import smbus3 as smbus
 from influxdb import InfluxDBClient
-
+from dfld_common import LiveView
 
 I2C_ADDR = 0x55 # DNMS slave address
 INTERVAL = 1
@@ -52,7 +52,7 @@ def floats_from_bytes(data):
         i += 4
     return result
 
-def write_data(data, c):
+def write_data(data, c, lv):
     # send data to influx DB
     json_body = [
         {
@@ -69,9 +69,17 @@ def write_data(data, c):
     ]
     c.write_points(json_body)
     logging.debug(f'data written: avg={data[0]:.2f}, min={data[1]:.2f}, max={data[2]:.2f}')
+        
+    # send data to liveview
+    if lv.active:
+        lv.send(data[0])
+        logging.debug(f'liveview data sent: {data[0]:.2f} dBA')
+
 
 while True:
     try:
+        liveview = LiveView()
+
         # create connection to influxdb v1
         logging.info(f'connecting to influx database ({args.influxdb_server})...')
         influxdb_server = args.influxdb_server.split(':')
@@ -122,7 +130,7 @@ while True:
             read = smbus.i2c_msg.read(I2C_ADDR, 64)
             bus.i2c_rdwr(write, read)
             data = floats_from_bytes(list(read))
-            write_data(data, client)
+            write_data(data, client, liveview)
 
             dt = time.time()-t0
             time.sleep(INTERVAL-dt)
