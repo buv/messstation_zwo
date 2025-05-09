@@ -25,7 +25,7 @@
     - name: Print error message in case of hardware detection failure
       when: detect_hw_response.failed
       ansible.builtin.debug:
-        msg: 
+        msg:
           - ''
           - '------------------------------------------------------------------------------------------------------'
           - 'Hardware detection failed.'
@@ -34,26 +34,24 @@
           - ''
 
     - name: Ready message
+      when: not detect_hw_response.failed
       ansible.builtin.debug:
         msg:
           - ''
           - '------------------------------------------------------------------------------------------------------'
           - ''
-          - 'DFLD Messstation ZWO is {{ (detect_hw_response.failed) | ternary("not", "") }} ready.'
+          - 'DFLD Messstation ZWO is{{ (detect_hw_response.failed) | ternary(" not ", " ") }}ready.'
           - ''
-          - 'You can access the portainer services at: https://{{ ansible_host }}:9443 / User: {{ portainer_username }} Password:{{ portainer_password }}'
-          - 'You can access the grafana services at: https://{{ ansible_host }}:3000 / User: {{ grafana_username }} Password:{{ grafana_password }}'
-          - 'You can access the influxdb services at: https://{{ ansible_host }}:8086 / User: {{ influxdb_username }} Password:{{ influxdb_password }}'
-          - 'You can access the postgres services at: https://{{ ansible_host }}:5432 / User: {{ postgres_username }} Password:{{ postgres_password }}'
+          - 'We setup a dashboard for you at: https://{{ ansible_default_ipv4.address }}'
+          - ''
+          - 'You can access the portainer services at: https://{{ ansible_default_ipv4.address }}:9443 with User: {{ portainer_username }} / Password: {{ portainer_password }}'
+          - 'You can access the grafana services at: https://{{ ansible_default_ipv4.address }}:3000 with User: {{ grafana_username }} / Password: {{ grafana_password }}'
+          - 'You can access the pgadmin services at: https://{{ ansible_default_ipv4.address }}:8083 with User: {{ pgadmin_email }} / Password: {{ pgadmin_password }}'
+          - ''
+          - 'You can access the influxdb with: User: {{ influxdb_username }} / Password: {{ influxdb_password }}'
+          - 'You can access the postgres with: User: {{ postgres_username }} / Password: {{ postgres_password }}'
           - ''
           - '{{ (detect_hw_response.failed) | ternary("You may look around. But nothing will be measured.", "Happy measuring!") }}'
-          - ''
-          - '------------------------------------------------------------------------------------------------------'
-          - ''
-
-    - name: Print hardware setup
-      ansible.builtin.debug:
-        msg:
           - ''
           - '------------------------------------------------------------------------------------------------------'
           - 'Hardware setup:'
@@ -69,7 +67,7 @@
     - name: Check if reboot is required
       when: check_reboot.stat.exists
       block:
-        - name: Wait to ready
+        - name: Inform about reboot
           ansible.builtin.pause:
             minutes: 1
             prompt: "Waiting for the system to reboot. You may copy the above messages for later use."

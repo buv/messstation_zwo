@@ -2,36 +2,11 @@
 
 - name: Read infrastructure env file
   ansible.builtin.set_fact:
-    compose_env: "{{ dict(lookup('template', 'compose.env.j2').split() | map('split', '=', 1)) }}"
+    compose_env: "{{ dict(lookup('template', playbook_dir ~ '/templates/container/compose.env.j2').split() | map('split', '=', 1)) }}"
 
 - name: Read infrastructure yml compose file
   ansible.builtin.set_fact:
-    compose_yaml: "{{ lookup('template', 'ingress-compose.yml.j2') | from_yaml }}"
-
-- name: Remove bme280, if no hardware found
-  ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['bme2influx']) }}"
-  when: hw_conf["BME280_AVAILABLE"]==0
-
-- name: Remove dfld_dnms, if no hardware found
-  ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['dnms2influx']) }}"
-  when: hw_conf["DFLD_DNMS_AVAILABLE"]==0
-
-- name: Remove dfld_legacy, if no hardware found
-  ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['dfld2influx']) }}"
-  when: hw_conf["DFLD_LEGACY_AVAILABLE"]==0
-
-- name: Remove dnms_i2c, if no hardware found
-  ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['dnmsiic2influx']) }}"
-  when: hw_conf["DNMS_I2C_AVAILABLE"]==0
-
-- name: Remove detect_flyover, if no hardware found
-  ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml|ansible.utils.remove_keys(target=['detect_flyover']) }}"
-  when: hw_conf["ADSB_AVAILABLE"]==0
+    compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/ingress-compose.yml.j2') | from_yaml }}"
 
 - name: Deploy stack ingress, if not exists
   ansible.builtin.uri:

@@ -1,0 +1,7 @@
+---
+
+- name: Copy telegraf config
+  ansible.builtin.copy:
+    src: "telegraf.conf"
+    dest: "{{ dfld_dir }}/telegraf.conf"
+    mode: '0644'

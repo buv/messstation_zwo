@@ -1,4 +1,5 @@
 services:
+{% if hw_conf["DFLD_DNMS_AVAILABLE"]==1 %}
   dnms2influx:
     image: dfld_box
     restart: unless-stopped
@@ -16,11 +17,19 @@ services:
       - DFLD_CKSUM=${DFLD_CKSUM}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
       - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=dnms2influx
+      - homepage.icon=/icons/microphone-voice-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
     networks:
       - network
     devices:
       - ${DEVICE_DNMS}
+{% endif %}
 
+{% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
   dfld2influx:
     image: dfld_box
     restart: unless-stopped
@@ -38,11 +47,19 @@ services:
       - DFLD_CKSUM=${DFLD_CKSUM}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
       - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=dnms2influx
+      - homepage.icon=https://www.dfld.de/Basics/images/Logo-DFLD.svg
+      - homepage.description=Fancy legacy stuff
+      - homepage.showStats=true
     networks:
       - network
     devices:
       - ${DEVICE_DFLD}
+{% endif %}
 
+{% if hw_conf["DNMS_I2C_AVAILABLE"]==1 %}
   dnmsiic2influx:
     image: dfld_box
     restart: unless-stopped
@@ -59,11 +76,19 @@ services:
       - DFLD_CKSUM=${DFLD_CKSUM}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
       - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=dnmsiic2influx
+      - homepage.icon=/icons/processor-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
     networks:
       - network
     devices:
       - ${DEVICE_I2C}
+{% endif %}
 
+{% if hw_conf["BME280_AVAILABLE"]==1 %}
   bme2influx:
     image: dfld_box
     restart: unless-stopped
@@ -76,11 +101,19 @@ services:
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - INFLUXDB_MEASUREMENT=${INFLUXDB_AIR_MEASUREMENT}
       - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=bme2influx
+      - homepage.icon=/icons/thermometer-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
     networks:
       - network
     devices:
       - ${DEVICE_I2C}
+{% endif %}
 
+{% if hw_conf["ADSB_AVAILABLE"]==1 %}
   detect_flyover:
     image: dfld_box
     restart: unless-stopped
@@ -94,9 +127,17 @@ services:
       - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
       - STATION_POSITION=${LON}:${LAT}:${ALT_M}
       - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=detect_flyover
+      - homepage.icon=/icons/flight-landing-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
     networks:
       - network
+{% endif %}
 
+{% if dfld_legacy | length != 0 %}
   dfld_ftp:
     image: dfld_box
     restart: unless-stopped
@@ -114,8 +155,15 @@ services:
       - DFLD_LEGACY=${DFLD_LEGACY}
       - TZ=${TZ}
       - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=dfld_ftp
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Push the data home
+      - homepage.showStats=true
     networks:
       - network
+{% endif %}
 
 networks:
     network:

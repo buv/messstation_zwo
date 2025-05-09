@@ -1,0 +1,43 @@
+---
+
+- name: Create homepage config folder
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/homepage/{{ homepage_folder }}"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - config
+    - icons
+  loop_control:
+    loop_var: homepage_folder
+
+- name: Create homepage config file
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/homepage/{{ homepage_config }}.j2"
+    dest: "{{ dfld_dir }}/homepage/config/{{ homepage_config }}"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+  loop:
+    - bookmarks.yaml
+    - docker.yaml
+    - services.yaml
+    - settings.yaml
+    - widgets.yaml
+  loop_control:
+    loop_var: homepage_config
+
+- name: Create homepage icons
+  ansible.builtin.copy:
+    src: "{{ homepage_icon }}"
+    dest: "{{ dfld_dir }}/homepage/icons"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+  with_fileglob:
+    - "{{ playbook_dir }}/files/homepage/*.svg"
+    - "{{ playbook_dir }}/files/homepage/*.png"
+  loop_control:
+    loop_var: homepage_icon

@@ -1,23 +1,25 @@
 ---
 
-- name: Copy telegraf config
-  ansible.builtin.copy:
-    src: "telegraf.conf"
-    dest: "{{ dfld_dir }}/telegraf.conf"
-    mode: '0644'
+- name: Include container specific tasks
+  ansible.builtin.include_tasks: "{{ item }}.yml"
+  loop:
+    - telegraf
+    - homepage
+    - mqtt
+    - pgadmin
 
 - name: Read infrastructure env file
   ansible.builtin.set_fact:
-    compose_env: "{{ dict(lookup('template', 'compose.env.j2').split() | map('split', '=', 1)) }}"
+    compose_env: "{{ dict(lookup('template', playbook_dir ~ '/templates/container/compose.env.j2').split() | map('split', '=', 1)) }}"
 
 - name: Read infrastructure yml compose file
   ansible.builtin.set_fact:
-    compose_yaml: "{{ lookup('template', 'infrastructure-compose.yml.j2') | from_yaml }}"
+    compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/infrastructure-compose.yml.j2') | from_yaml }}"
 
-- name: Remove adsb software, if no hardware found
-  ansible.builtin.set_fact:
-    compose_yaml: "{{ compose_yaml | ansible.utils.remove_keys(target=['ultrafeeder']) }}"
-  when: hw_conf["ADSB_AVAILABLE"] == 0
+# - name: Remove adsb software, if no hardware found
+#   ansible.builtin.set_fact:
+#     compose_yaml: "{{ compose_yaml | ansible.utils.remove_keys(target=['ultrafeeder']) }}"
+#   when: hw_conf["ADSB_AVAILABLE"] == 0
 
 - name: Deploy stack infrastructure, if not exists
   ansible.builtin.uri:

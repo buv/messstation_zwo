@@ -10,17 +10,19 @@
   until: postgres_info is not failed
   retries: 5
 
-- debug:
+- name: Debug postgres info
+  ansible.builtin.debug:
     msg: "Postgres version: {{ postgres_info.versions[0].version }}"
   when: postgres_info.versions is defined
-- debug:
+
+- name: Debug postgres extensions
+  ansible.builtin.debug:
     msg: "Postgres extensions: {{ postgres_info.extensions }}"
   when: postgres_info.extensions is defined
 
 # create database
 - name: Create database
-  become: yes
-  postgresql_db:
+  community.postgresql.postgresql_db:
     name: "{{ postgres_database }}"
     state: present
     login_host: "127.0.0.1"
@@ -30,8 +32,7 @@
 
 # install postgis extension
 - name: Install postgis extension
-  become: yes
-  postgresql_ext:
+  community.postgresql.postgresql_ext:
     name: postgis
     db: "{{ postgres_database }}"
     state: present

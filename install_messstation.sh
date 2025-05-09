@@ -11,4 +11,4 @@ fi
 ansible-galaxy role install -r requirements.yml -p ./roles
 
 # playbook
-./dfld.yml $HOST_ARGS -i inventory.yml 
+./dfld.yml $HOST_ARGS -i inventory.yml
