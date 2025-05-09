@@ -14,6 +14,14 @@
       - portainer_data:/data
     env:
       logo: "https://www.dfld.de/Basics/images/Logo-DFLD.svg"
+    labels:
+      homepage.group: "DEV Tools"
+      homepage.name: "Portainer"
+      homepage.icon: "portainer.svg"
+      homepage.href: "https://{{ ansible_default_ipv4.address }}:9443/"
+      homepage.target: "_self"
+      homepage.description: "Administrate your Container"
+      homepage.showStats: "true"
 
 - name: Wait for Portainer to start
   ansible.builtin.wait_for:

@@ -7,13 +7,30 @@
 
 - name: Print I2C status
   ansible.builtin.debug:
-    msg: "I2C status is: {{ i2c_status.stdout }}"
+    msg: "I2C status is {{ 'enabled' if i2c_status.stdout == '0' else 'disabled' }}."
 
 - name: Enable I2C
-  become: true
-  ansible.builtin.command: "raspi-config nonint do_i2c 0"
   when: i2c_status.stdout != '0'
-  notify: 
-    - Reboot remote
-    - Reboot locally
-  changed_when: false
+  block:
+    - name: Enable I2C
+      ansible.builtin.command: "raspi-config nonint do_i2c 0"
+      changed_when: false
+    - name: Check I2C again
+      ansible.builtin.command: "raspi-config nonint get_i2c"
+      register: i2c_new_status
+      changed_when: false
+      failed_when: i2c_new_status.stdout != '0'
+    - name: Print I2C status
+      ansible.builtin.debug:
+        msg: "I2C status is now {{ 'enabled' if i2c_new_status.stdout == '0' else 'disabled' }}."
+  rescue:
+    - name: Inform about reboot
+      ansible.builtin.pause:
+        minutes: 1
+        prompt: "i2c status is not enabled. The system will reboot. {{ 'Rerun the playbook after the reboot.' if inventory_hostname == '127.0.0.1' else 'Stay tuned.' }}"
+    - name: Reboot System
+      ansible.builtin.reboot:
+        msg: |
+          Reboot is required.
+          Your System will reboot now.
+        reboot_timeout: 120

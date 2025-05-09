@@ -1,0 +1,22 @@
+---
+
+- name: Create pgadmin config folder
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/pgadmin4"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    state: directory
+    mode: '0755'
+
+- name: Create pgadmin config file
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/pgadmin4/{{ pgadmin_config }}.j2"
+    dest: "{{ dfld_dir }}/pgadmin4/{{ pgadmin_config }}"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+  loop:
+    - server.json
+    - pgpass
+  loop_control:
+    loop_var: pgadmin_config

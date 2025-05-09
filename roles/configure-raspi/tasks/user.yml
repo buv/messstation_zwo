@@ -11,6 +11,7 @@
     group: "{{ dfld_group }}"
     shell: /bin/bash
     state: present
+  register: dfld_user_info
 
 - name: Create a directory for portainer and all DFLD data
   become: true

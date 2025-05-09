@@ -7,6 +7,12 @@ services:
       - PGDATA=/data/postgres
       - POSTGRES_USER=${POSTGRES_ADMIN_USERNAME}
       - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=Postgis
+      - homepage.icon=postgresql.svg
+      - homepage.description=Save harbour for all your data
+      - homepage.showStats=true
     networks:
       - network
     ports:
@@ -14,6 +20,7 @@ services:
     volumes:
       - postgres-data:/data/postgres
 
+{% if hw_conf["ADSB_AVAILABLE"]==1 %}
   ultrafeeder:
     image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
     # Note - if you want to enable telegraf for use with InfluxDB/Prometheus and Grafana,
@@ -65,6 +72,12 @@ services:
     # --------------------------------------------------
     # GRAPHS1090 (Decoder and System Status Web Page) parameters:
       - GRAPHS1090_DARKMODE=true
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=adsb ultrafeeder
+      - homepage.icon=https://avatars.githubusercontent.com/u/98966214?v=4
+      - homepage.description=Don't miss a single plane
+      - homepage.showStats=true
     volumes:
       - ultrafeeder-globe_history:/var/globe_history
       - ultrafeeder-graphs1090:/var/lib/collectd
@@ -76,6 +89,7 @@ services:
       - /var/log:size=32M
     networks:
       - network
+{% endif %}
 
   influxdb:
     image: influxdb:1.11.8-alpine
@@ -93,6 +107,12 @@ services:
       - INFLUXDB_DB=${INFLUXDB_DATABASE}
       - INFLUXDB_ADMIN_USER=${INFLUX_ADMIN_USERNAME}
       - INFLUXDB_ADMIN_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=InfluxDB
+      - homepage.icon=influxdb.svg
+      - homepage.description=InfluxDB is 😎
+      - homepage.showStats=true
 
   grafana:
     image: grafana/grafana:latest
@@ -102,6 +122,14 @@ services:
       - TZ=${TZ}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    labels:
+      - homepage.group=Dashboards
+      - homepage.href=http://{{ ansible_default_ipv4.address }}:3000
+      - homepage.target=_self
+      - homepage.name=Grafana
+      - homepage.icon=grafana.svg
+      - homepage.description=All your DFLD data in one place
+      - homepage.showStats=true
     user: ${UID}:${GID}
     ports:
       - 3000:3000
@@ -113,6 +141,64 @@ services:
     depends_on:
       - influxdb
       - postgis
+
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ${DOCKER_EXTERNAL_ROOT}/mqtt/config:/mosquitto/config:rw
+      - mqtt-data:/mosquitto/data:rw
+      - mqtt-log:/mosquitto/log:rw
+    restart: unless-stopped
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=Eclipse Mosquitto
+      - homepage.icon=mosquitto.svg
+      - homepage.description=We transfer all the data
+      - homepage.showStats=true
+
+  mqtt-x:
+    image: emqx/mqttx-web
+    container_name: mqtt-x
+    restart: unless-stopped
+    ports:
+      - 8081:80
+    labels:
+      - homepage.group=DEV Tools
+      - homepage.href=http://{{ ansible_default_ipv4.address }}:8081
+      - homepage.target=_self
+      - homepage.name=MQTTX
+      - homepage.icon=http://192.168.178.149/img/app-logo.d40ec52f.png
+      - homepage.description=Let's connect to the MQTT broker
+      - homepage.showStats=true
+
+  pgadmin4:
+    image: dpage/pgadmin4
+    container_name: pgadmin4
+    restart: unless-stopped
+    ports:
+      - 8083:80
+    environment:
+      - PGADMIN_DEFAULT_EMAIL={{ pgadmin_email }}
+      - PGADMIN_DEFAULT_PASSWORD={{ pgadmin_password }}
+      - PGADMIN_SERVER_JSON_FILE=/pgadmin4/servers.json
+      - PGPASS_FILE=/pgadmin4/pgpass
+    labels:
+      - homepage.group=DEV Tools
+      - homepage.href=http://{{ ansible_default_ipv4.address }}:8083
+      - homepage.target=_self
+      - homepage.name=pgAdmin
+      - homepage.icon=pgadmin.svg
+      - homepage.description=pgAdmin is a full-featured Postgresql management tool
+      - homepage.showStats=true
+    volumes:
+      - ${DOCKER_EXTERNAL_ROOT}/pgadmin4/server.json:/pgadmin4/servers.json:ro
+      - ${DOCKER_EXTERNAL_ROOT}/pgadmin4/pgpass:/pgadmin4/pgpass:ro
+    networks:
+      - network
 
   telegraf:
     image: telegraf:latest
@@ -131,11 +217,40 @@ services:
       - 8094:8094
     networks:
       - network
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=Telegraf
+      - homepage.icon=telegraf.svg
+      - homepage.description=We record all the data
+      - homepage.showStats=true
     volumes:
       - ${DOCKER_EXTERNAL_ROOT}/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - influxdb
+
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "{{ ansible_default_ipv4.address }}"
+      #PUID: "{{ dfld_user_info.uid }}"
+      #PGID: "{{ dfld_user_info.group }}"
+    ports:
+      - 80:3000
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=Homepage
+      - homepage.icon=homepage.png
+      - homepage.description=Your DFLD BOX Dashboard
+      - homepage.showStats=true
+    volumes:
+      - ${DOCKER_EXTERNAL_ROOT}/homepage/config:/app/config
+      - ${DOCKER_EXTERNAL_ROOT}/homepage/icons:/app/public/icons
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - network
 
 volumes:
   ultrafeeder-globe_history:
@@ -145,6 +260,9 @@ volumes:
   grafana-data:
   grafana-provisioning:
   postgres-data:
+  homepage-data:
+  mqtt-data:
+  mqtt-log:
 
 networks:
     network:

@@ -4,6 +4,7 @@ all:
     station_lon: "0.0"
     station_lat: "0.0"
     station_alt: "0.0"
+    station_city: ""
 
     dfld_region: ""
     dfld_station: ""
@@ -29,6 +30,9 @@ all:
     postgres_password: "{{ dfld_user }}"
     postgres_database: "dfld"
 
+    pgadmin_email: "{{ dfld_user }}@dfld.de"
+    pgadmin_password: "{{ dfld_user }}"
+    
     #
     # ansible part
     #
