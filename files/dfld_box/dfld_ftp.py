@@ -159,7 +159,7 @@ def check_for_transfer():
         # do not transfer if last transfer date is not set,
         # but initialize instead
         with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
-             print(yesterday_str, file=f)
+            print(yesterday_str, file=f)
         logging.info('last transfer date set to %s', yesterday_str)
         full_transfer_due = False
 
@@ -169,19 +169,23 @@ def check_for_transfer():
 
     buf = get_data(now_dt, full_transfer_due)
     if buf and len(buf) > 0:
-        logging.info('transfering %s bytes of data to file %s via ftp...', len(buf), ftp_filename)
-        ftp_dst = deobfuscate_string(os.environ['DFLD_LEGACY']).split(':')
-        ftp = ftplib.FTP()
-        ftp.connect(ftp_dst[0], int(ftp_dst[1]))
-        ftp.login(ftp_dst[2], ftp_dst[3])
+        try:
+            ftp_dst = deobfuscate_string(os.environ['DFLD_LEGACY']).split(':')
+            ftp = ftplib.FTP()
+            ftp.connect(ftp_dst[0], int(ftp_dst[1]))
+            ftp.login(ftp_dst[2], ftp_dst[3])
+            logging.info('transfering %s bytes of data to file %s via ftp...', len(buf), ftp_filename)
 
-        with io.BytesIO(buf) as f:
-            ftp.storbinary(f'STOR {ftp_filename}', f)
-    
-        ftp.quit()
-        if full_transfer_due:
-            with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
-                print(day_str, file=f)
+            with io.BytesIO(buf) as f:
+                ftp.storbinary(f'STOR {ftp_filename}', f)
+        
+            ftp.quit()
+            if full_transfer_due:
+                with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
+                    print(day_str, file=f)
+        except ftplib.all_errors as e:
+            logging.error('ftp error: %s', e)
+            logging.error('transfer failed, retry in 1 hour')
 
 while True:
     check_for_transfer()

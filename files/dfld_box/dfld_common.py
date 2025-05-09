@@ -22,6 +22,7 @@ class LiveView:
         self.socket = None
         self.data = None
         self.cksum = None
+        self.next_attempt = None
 
         required_env = ['DFLD_LIVEVIEW', 'DFLD_REGION', 'DFLD_STATION', 'DFLD_CKSUM']
         if all(k in os.environ for k in required_env):
@@ -29,8 +30,7 @@ class LiveView:
             if len(server_param) == 2:
                 self.server = server_param[0]
                 self.port = int(server_param[1])
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
+                self.init_socket()
                 self.cksum = int(os.environ['DFLD_CKSUM'])
 
                 # convert the data to bytes from 2-byte integers
@@ -53,11 +53,44 @@ class LiveView:
                 logging.info(f'LiveView active: {self.server}:{self.port}')
 
 
+    def set_next_attempt(self):
+        """
+        Set the next attempt to initialize the socket.
+        """
+        self.next_attempt = time.time() + 3600
+
+
+    def init_socket(self):
+        """
+        Initialize the socket.
+        """
+        if self.next_attempt and time.time() < self.next_attempt:
+            return
+
+        if self.active:
+            try:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.socket.settimeout(1)
+                logging.debug('socket initialized')
+                self.next_attempt = None
+            except socket.error as e:
+                logging.error(f'Error creating socket: {e}')
+                self.socket = None
+                # set next attempt to 1 hour
+                self.set_next_attempt()
+        else:
+            self.socket = None
+
+
     def send(self, value):
         """
         Send data to the DFLD server.
         :param data: data to send
         """
+        # check if socket is initialized
+        if self.socket is None:
+            self.init_socket()
+
         if self.active and self.socket:
             # write timestamp to data
             self.data[8:12] = int(time.time()).to_bytes(4, byteorder='big')
@@ -68,7 +101,12 @@ class LiveView:
             self.data[18:20] = crc.to_bytes(2, byteorder='big')
 
             # send the data to the server
-            self.socket.sendto(self.data, (self.server, self.port))
+            try:
+                self.socket.sendto(self.data, (self.server, self.port))
+            except socket.error as e:
+                logging.error(f'Error sending data: {e}')
+                self.socket = None
+                self.set_next_attempt()
             logging.debug(f'LiveView data sent: {self.data.hex()}')
 
 
