@@ -124,7 +124,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
     labels:
       - homepage.group=Dashboards
-      - homepage.href=http://{{ ansible_default_ipv4.address }}:3000
+      - homepage.href=http://{{ messstation_fqdn }}:3000
       - homepage.target=_self
       - homepage.name=Grafana
       - homepage.icon=grafana.svg
@@ -168,10 +168,10 @@ services:
       - 8081:80
     labels:
       - homepage.group=DEV Tools
-      - homepage.href=http://{{ ansible_default_ipv4.address }}:8081
+      - homepage.href=http://{{ messstation_fqdn }}:8081
       - homepage.target=_self
       - homepage.name=MQTTX
-      - homepage.icon=http://192.168.178.149/img/app-logo.d40ec52f.png
+      - homepage.icon=/icons/mqttx.png
       - homepage.description=Let's connect to the MQTT broker
       - homepage.showStats=true
 
@@ -188,7 +188,7 @@ services:
       - PGPASS_FILE=/pgadmin4/pgpass
     labels:
       - homepage.group=DEV Tools
-      - homepage.href=http://{{ ansible_default_ipv4.address }}:8083
+      - homepage.href=http://{{ messstation_fqdn }}:8083
       - homepage.target=_self
       - homepage.name=pgAdmin
       - homepage.icon=pgadmin.svg
@@ -233,7 +233,7 @@ services:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
     environment:
-      HOMEPAGE_ALLOWED_HOSTS: "{{ ansible_default_ipv4.address }}"
+      HOMEPAGE_ALLOWED_HOSTS: "{{ homepage_allowed_hosts }}"
       #PUID: "{{ dfld_user_info.uid }}"
       #PGID: "{{ dfld_user_info.group }}"
     ports:

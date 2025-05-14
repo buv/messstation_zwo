@@ -16,11 +16,6 @@
   ansible.builtin.set_fact:
     compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/infrastructure-compose.yml.j2') | from_yaml }}"
 
-# - name: Remove adsb software, if no hardware found
-#   ansible.builtin.set_fact:
-#     compose_yaml: "{{ compose_yaml | ansible.utils.remove_keys(target=['ultrafeeder']) }}"
-#   when: hw_conf["ADSB_AVAILABLE"] == 0
-
 - name: Deploy stack infrastructure, if not exists
   ansible.builtin.uri:
     url: "https://localhost:9443/api/stacks/create/standalone/string?endpointId={{ portainer_endpoint_data.Id }}"

@@ -18,7 +18,7 @@
       homepage.group: "DEV Tools"
       homepage.name: "Portainer"
       homepage.icon: "portainer.svg"
-      homepage.href: "https://{{ ansible_default_ipv4.address }}:9443/"
+      homepage.href: "https://{{ messstation_fqdn }}:9443/"
       homepage.target: "_self"
       homepage.description: "Administrate your Container"
       homepage.showStats: "true"
