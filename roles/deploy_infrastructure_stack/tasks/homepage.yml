@@ -41,3 +41,13 @@
     - "{{ playbook_dir }}/files/homepage/*.png"
   loop_control:
     loop_var: homepage_icon
+
+- name: Create HOMEPAGE_ALLOWED_HOSTS list
+  ansible.builtin.set_fact:
+    homepage_allowed_hosts: "{{ (homepage_allowed_hosts_list + user_allowed_homepage_hosts) | unique | reject('equalto', '') | join(',') }}"
+  vars:
+    homepage_allowed_hosts_list:
+      - "{{ ansible_default_ipv4.address }}"
+      - "{{ ansible_fqdn }}"
+      - "{{ ansible_hostname }}"
+      - "{{ 'dfld-' + (dfld_region if dfld_region | length > 0 else '000') + '-' + (dfld_station if dfld_station | length > 0 else '000') }}"

@@ -1,36 +1,25 @@
 ---
 
-- name: Get I2C status
-  ansible.builtin.command: "raspi-config nonint get_i2c"
+- name: Enable i2c_dev kernel module
+  community.general.modprobe:
+    name: i2c_dev
+    state: present
+    persistent: present
+
+- name: Get i2c bus status
+  ansible.builtin.slurp:
+    src: /boot/firmware/config.txt
   register: i2c_status
-  changed_when: false
 
-- name: Print I2C status
-  ansible.builtin.debug:
-    msg: "I2C status is {{ 'enabled' if i2c_status.stdout == '0' else 'disabled' }}."
+- name: Enable i2c bus
+  ansible.builtin.command: "dtparam i2c_arm=on"
+  when: "('dtparam=i2c_arm=off' in i2c_status.content | b64decode) or ('#dtparam=i2c_arm=on' in i2c_status.content | b64decode)"
+  register: i2c_enable
 
-- name: Enable I2C
-  when: i2c_status.stdout != '0'
-  block:
-    - name: Enable I2C
-      ansible.builtin.command: "raspi-config nonint do_i2c 0"
-      changed_when: false
-    - name: Check I2C again
-      ansible.builtin.command: "raspi-config nonint get_i2c"
-      register: i2c_new_status
-      changed_when: false
-      failed_when: i2c_new_status.stdout != '0'
-    - name: Print I2C status
-      ansible.builtin.debug:
-        msg: "I2C status is now {{ 'enabled' if i2c_new_status.stdout == '0' else 'disabled' }}."
-  rescue:
-    - name: Inform about reboot
-      ansible.builtin.pause:
-        minutes: 1
-        prompt: "i2c status is not enabled. The system will reboot. {{ 'Rerun the playbook after the reboot.' if inventory_hostname == '127.0.0.1' else 'Stay tuned.' }}"
-    - name: Reboot System
-      ansible.builtin.reboot:
-        msg: |
-          Reboot is required.
-          Your System will reboot now.
-        reboot_timeout: 120
+- name: Activate i2c bus
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    line: dtparam=i2c_arm=on
+    regexp: '^#?dtparam=i2c_arm=(?:on|off)$'
+    state: present
+  when: i2c_enable.changed
