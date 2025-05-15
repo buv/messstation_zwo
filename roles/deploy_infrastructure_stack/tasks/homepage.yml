@@ -50,4 +50,4 @@
       - "{{ ansible_default_ipv4.address }}"
       - "{{ ansible_fqdn }}"
       - "{{ ansible_hostname }}"
-      - "{{ 'dfld-' + dfld_station if dfld_station | length > 0 else '' }}"
+      - "{{ 'dfld-' + (dfld_region if dfld_region | length > 0 else '000') + '-' + (dfld_station if dfld_station | length > 0 else '000') }}"
