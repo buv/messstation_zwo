@@ -21,6 +21,6 @@
      { "name": "ingress",
        "env": {{ compose_env | dict2items(key_name="name", value_name="value") | to_json }},
        "stackFileContent": {{ compose_yaml | to_nice_yaml | to_json }} }
-    timeout: 300
+    timeout: 600
     status_code: 200
   when: "'ingress' not in portainer_stacks.json|map(attribute='Name')"
