@@ -8,7 +8,7 @@
     filter: ver*,ext*
   register: postgres_info
   until: postgres_info is not failed
-  retries: 5
+  retries: 10
 
 - name: Debug postgres info
   ansible.builtin.debug:

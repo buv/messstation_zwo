@@ -2,7 +2,7 @@ all:
   vars:
     # fqdn oder ip adresse, unter der die homepage erreichbar ist
     # default ist die von ansible automatische fqdn der messbox
-    messstation_fqdn: "{{ ansible_fqdn }}"
+    messstation_fqdn: "{{ ansible_hostname }}"
     # liste von zusätzlichen fqdns oder ips, unter der die homepage erreichbar sein soll
     user_allowed_homepage_hosts:
       - ""

@@ -4,6 +4,11 @@
   ansible.builtin.include_tasks:
     file: user.yml
 
+- name: Check if /boot/firmware directory exists
+  ansible.builtin.stat:
+    path: /boot/firmware
+  register: boot_firmware_dir
+
 - name: Configure OS
   ansible.builtin.include_tasks:
     file: os.yml

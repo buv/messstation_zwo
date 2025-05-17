@@ -6,20 +6,23 @@
     state: present
     persistent: present
 
-- name: Get i2c bus status
-  ansible.builtin.slurp:
-    src: /boot/firmware/config.txt
-  register: i2c_status
+- name: Enable i2c on raspi
+  when: boot_firmware_dir.stat.exists
+  block:
+  - name: Get i2c bus status
+    ansible.builtin.slurp:
+      src: /boot/firmware/config.txt
+    register: i2c_status
 
-- name: Enable i2c bus
-  ansible.builtin.command: "dtparam i2c_arm=on"
-  when: "('dtparam=i2c_arm=off' in i2c_status.content | b64decode) or ('#dtparam=i2c_arm=on' in i2c_status.content | b64decode)"
-  register: i2c_enable
+  - name: Enable i2c bus
+    ansible.builtin.command: "dtparam i2c_arm=on"
+    when: "('dtparam=i2c_arm=off' in i2c_status.content | b64decode) or ('#dtparam=i2c_arm=on' in i2c_status.content | b64decode)"
+    register: i2c_enable
 
-- name: Activate i2c bus
-  ansible.builtin.lineinfile:
-    path: /boot/firmware/config.txt
-    line: dtparam=i2c_arm=on
-    regexp: '^#?dtparam=i2c_arm=(?:on|off)$'
-    state: present
-  when: i2c_enable.changed
+  - name: Activate i2c bus
+    ansible.builtin.lineinfile:
+      path: /boot/firmware/config.txt
+      line: dtparam=i2c_arm=on
+      regexp: '^#?dtparam=i2c_arm=(?:on|off)$'
+      state: present
+    when: i2c_enable.changed

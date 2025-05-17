@@ -14,39 +14,43 @@
       - python3
       - python3-pip
       - python3-psycopg2
+      - python3-requests
       - netcat-openbsd
     state: present
 
-- name: Get /boot/firmware/cmdline.txt
-  ansible.builtin.slurp:
-    path: /boot/firmware/cmdline.txt
-  register: cmdline_content
+- name: Enable cgroups
+  when: boot_firmware_dir.stat.exists
+  block:
+  - name: Get /boot/firmware/cmdline.txt
+    ansible.builtin.slurp:
+      path: /boot/firmware/cmdline.txt
+    register: cmdline_content
 
-- name: Remove existing cgroup parameters from /boot/firmware/cmdline.txt
-  ansible.builtin.set_fact:
-    cmdline_line_ohne_cgroup: "{{ cmdline_content.content | b64decode | regex_replace('(\\s*' ~ cgroup_praefix ~ '[^\\s]+)+', '') }}"
+  - name: Remove existing cgroup parameters from /boot/firmware/cmdline.txt
+    ansible.builtin.set_fact:
+      cmdline_line_ohne_cgroup: "{{ cmdline_content.content | b64decode | regex_replace('(\\s*' ~ cgroup_praefix ~ '[^\\s]+)+', '') }}"
 
-- name: Insert wanted cgroup parameters into /boot/firmware/cmdline.txt
-  ansible.builtin.set_fact:
-    cmdline_line: "{{ cmdline_line_ohne_cgroup | trim }} {{ gewuenschte_cgroup_params | join(' ') }}"
+  - name: Insert wanted cgroup parameters into /boot/firmware/cmdline.txt
+    ansible.builtin.set_fact:
+      cmdline_line: "{{ cmdline_line_ohne_cgroup | trim }} {{ gewuenschte_cgroup_params | join(' ') }}"
 
-- name: Write new cmdline.txt
-  ansible.builtin.copy:
-    content: "{{ cmdline_line | trim }}"
-    dest: /boot/firmware/cmdline.txt
-    owner: root
-    group: root
-    mode: '0644'
-  register: cmdline_txt_changed
+  - name: Write new cmdline.txt
+    ansible.builtin.copy:
+      content: "{{ cmdline_line | trim }}"
+      dest: /boot/firmware/cmdline.txt
+      owner: root
+      group: root
+      mode: '0644'
+    register: cmdline_txt_changed
 
-- name: Set reboot required if cmdline.txt changed
-  ansible.builtin.file:
-    name: /var/run/reboot-required
-    owner: root
-    group: root
-    mode: '0644'
-    state: touch
-  when: cmdline_txt_changed.changed
+  - name: Set reboot required if cmdline.txt changed
+    ansible.builtin.file:
+      name: /var/run/reboot-required
+      owner: root
+      group: root
+      mode: '0644'
+      state: touch
+    when: cmdline_txt_changed.changed
 
 - name: Check if reboot is needed
   ansible.builtin.stat:
