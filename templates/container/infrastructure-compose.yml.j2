@@ -73,7 +73,8 @@ services:
     # GRAPHS1090 (Decoder and System Status Web Page) parameters:
       - GRAPHS1090_DARKMODE=true
     labels:
-      - homepage.group=Infrastructure
+      - homepage.group=Dashboards
+      - homepage.href=http://{{ messstation_fqdn }}:8080
       - homepage.name=adsb ultrafeeder
       - homepage.icon=https://avatars.githubusercontent.com/u/98966214?v=4
       - homepage.description=Don't miss a single plane
