@@ -91,6 +91,32 @@ services:
       - network
 {% endif %}
 
+  questdb:
+    image: questdb/questdb
+    restart: unless-stopped
+    container_name: questdb
+    networks:
+      - network
+    ports:
+      - 8812:8812
+      - 9000:9000
+      - 9009:9009
+      - 9003:9003
+    volumes:
+      - questdb-data:/var/lib/questdb
+    environment:
+      - QDB_ACL_ADMIN_USER=admin
+      - QDB_ACL_ADMIN_PASSWORD=${QUESTDB_PASSWORD}
+      - QDB_PG_USER=${QUESTDB_USERNAME}
+      - QDB_PG_PASSWORD=${QUESTDB_PASSWORD}
+      - QDB_TELEMETRY_ENABLED=false
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=QuestDB
+      - homepage.icon=questdb.svg
+      - homepage.description=QuestDB is 😎
+      - homepage.showStats=true
+
   influxdb:
     image: influxdb:1.11.8-alpine
     restart: unless-stopped
@@ -122,6 +148,7 @@ services:
       - TZ=${TZ}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=questdb-questdb-datasource
     labels:
       - homepage.group=Dashboards
       - homepage.href=http://{{ messstation_fqdn }}:3000
@@ -255,6 +282,7 @@ services:
 volumes:
   ultrafeeder-globe_history:
   ultrafeeder-graphs1090:
+  questdb-data:
   influxdb-data:
   influxdb-config:
   grafana-data:

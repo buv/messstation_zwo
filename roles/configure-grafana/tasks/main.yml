@@ -13,21 +13,76 @@
   delay: 2
 
 #
-# DFLD dashboard
+# create datasources
 #
 
-- name: Create influxdb datasource
-  community.grafana.grafana_datasource:
-    name: "influxdb"
-    grafana_url: "http://localhost:3000/"
-    grafana_user: "{{ grafana_username }}"
-    grafana_password: "{{ grafana_password }}"
-    user: "{{ influxdb_username }}"
-    password: "{{ influxdb_password }}"
-    ds_type: "influxdb"
-    ds_url: "http://influxdb:8086/"
-    database: "dfld"
-    uid: "cectojnfyi3ggd"
+#- name: Create influxdb datasource
+#  community.grafana.grafana_datasource:
+#    name: "influxdb"
+#    grafana_url: "http://localhost:3000/"
+#    grafana_user: "{{ grafana_username }}"
+#    grafana_password: "{{ grafana_password }}"
+#    user: "{{ influxdb_username }}"
+#    password: "{{ influxdb_password }}"
+#    ds_type: "influxdb"
+#    ds_url: "http://influxdb:8086/"
+#    database: "dfld"
+#    uid: "cectojnfyi3ggd"
+
+- name: Create questdb datasource
+  ansible.builtin.uri:
+    url: "http://localhost:3000/api/datasources"
+    method: POST
+    body_format: json
+    validate_certs: false
+    force_basic_auth: true
+    user: "{{ grafana_username }}"
+    password: "{{ grafana_password }}"
+    headers:
+      Content-Type: "application/json"
+    body: >-
+      { 
+        "name": "questdb", 
+        "type": "questdb-questdb-datasource", 
+        "uid": "eex9yg4jrtt6oa", 
+        "access": "proxy", 
+        "basicAuth": false, 
+        "jsonData": {
+          "pdcInjected": false, 
+          "port": 8812, 
+          "server": "questdb", 
+          "tlsMode": "disable", 
+          "username": "{{ questdb_username }}"
+        }, 
+        "secureJsonData": {
+          "password": "{{ questdb_password }}"
+        } 
+      }
+    timeout: 300
+    status_code: 200,409
+
+# Note: if the datasource already exists, a 409 is returned
+# Example to create the datasource manually via curl:
+
+# curl --header "Content-Type: application/json" --request POST --data '
+# {
+#   "name": "test_datasource7", 
+#   "type": "questdb-questdb-datasource", 
+#   "uid": "eex9yg4jrtt6oe", 
+#   "access": "proxy", 
+#   "basicAuth": false, 
+#   "jsonData": {
+#     "pdcInjected": false, 
+#     "port": 8812, 
+#     "server": "questdb", 
+#     "tlsMode": "disable", 
+#     "username": "dfld"
+#   }, 
+#   "secureJsonData": {
+#     "password": "dfld"
+#   }, 
+# }' 
+# http://dfld:dfld@10.2.1.96:3000/api/datasources
 
 - name: Create postgres datasource
   community.grafana.grafana_datasource:
@@ -41,6 +96,10 @@
     ds_url: "postgis:5432"
     database: "dfld"
     uid: "degnp01h2dnuof"
+
+#
+# DFLD dashboard
+#
 
 - name: Copy dashboard file to remote host
   ansible.builtin.copy:
@@ -63,19 +122,6 @@
 #
 # System dashboard
 #
-
-- name: Create influxdb datasource
-  community.grafana.grafana_datasource:
-    name: "influxdb-system"
-    grafana_url: "http://localhost:3000/"
-    grafana_user: "{{ grafana_username }}"
-    grafana_password: "{{ grafana_password }}"
-    user: "{{ influxdb_username }}"
-    password: "{{ influxdb_password }}"
-    ds_type: "influxdb"
-    ds_url: "http://influxdb:8086/"
-    database: "local_monitoring"
-    uid: "def0lj80ybny8f"
 
 - name: Copy dashboard file to remote host
   ansible.builtin.copy:

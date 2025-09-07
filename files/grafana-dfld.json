@@ -143,8 +143,8 @@
   "panels": [
     {
       "datasource": {
-        "type": "influxdb",
-        "uid": "cectojnfyi3ggd"
+        "type": "questdb-questdb-datasource",
+        "uid": "eex9yg4jrtt6oa"
       },
       "fieldConfig": {
         "defaults": {
@@ -189,7 +189,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -199,7 +200,32 @@
           },
           "unit": "dB"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "dB_A"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 9,
@@ -221,132 +247,38 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
-          "alias": "DNMS dB A avg",
-          "groupBy": [
-            {
-              "params": [
-                "$__interval"
-              ],
-              "type": "time"
-            },
-            {
-              "params": [
-                "null"
-              ],
-              "type": "fill"
-            }
-          ],
-          "measurement": "dnms_serial",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "query": "SELECT mean(\"dB_A_avg\") FROM \"dnms_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series",
-          "select": [
-            [
+          "builderOptions": {
+            "fields": [],
+            "filters": [],
+            "groupBy": [],
+            "limit": "",
+            "metrics": [
               {
-                "params": [
-                  "dB_A_avg"
-                ],
-                "type": "field"
-              },
-              {
-                "params": [],
-                "type": "mean"
+                "aggregation": "avg",
+                "alias": "dB_A",
+                "field": "dB_A_avg"
               }
-            ]
-          ],
-          "tags": []
-        },
-        {
-          "alias": "DFLD dB A avg",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "cectojnfyi3ggd"
+            ],
+            "mode": "trend",
+            "orderBy": [],
+            "partitionBy": [],
+            "sampleByAlignTo": "CALENDAR",
+            "sampleByFill": [
+              "NULL_0"
+            ],
+            "table": "dnms_serial",
+            "timeField": "timestamp"
           },
-          "groupBy": [
-            {
-              "params": [
-                "$__interval"
-              ],
-              "type": "time"
-            },
-            {
-              "params": [
-                "null"
-              ],
-              "type": "fill"
-            }
-          ],
-          "hide": false,
-          "measurement": "dfld_serial",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "query": "SELECT mean(\"dB_A_avg\") FROM \"dfld_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "B",
-          "resultFormat": "time_series",
-          "select": [
-            [
-              {
-                "params": [
-                  "dB_A_avg"
-                ],
-                "type": "field"
-              },
-              {
-                "params": [],
-                "type": "mean"
-              }
-            ]
-          ],
-          "tags": []
-        },
-        {
-          "alias": "DNMS i2c dB A avg",
           "datasource": {
-            "type": "influxdb",
-            "uid": "cectojnfyi3ggd"
+            "type": "questdb-questdb-datasource",
+            "uid": "eex9yg4jrtt6oa"
           },
-          "groupBy": [
-            {
-              "params": [
-                "$__interval"
-              ],
-              "type": "time"
-            },
-            {
-              "params": [
-                "null"
-              ],
-              "type": "fill"
-            }
-          ],
-          "hide": false,
-          "measurement": "dnms_i2c",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "refId": "C",
-          "resultFormat": "time_series",
-          "select": [
-            [
-              {
-                "params": [
-                  "dB_A_avg"
-                ],
-                "type": "field"
-              },
-              {
-                "params": [],
-                "type": "mean"
-              }
-            ]
-          ],
-          "tags": []
+          "queryType": "builder",
+          "rawSql": "SELECT timestamp as time,  avg(dB_A_avg) dB_A FROM \"dnms_serial\" WHERE $__timeFilter(timestamp) SAMPLE BY $__sampleByInterval FILL ( NULL ) ALIGN TO CALENDAR",
+          "refId": "A"
         }
       ],
       "title": "DFLD",
@@ -367,7 +299,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "text"
+                "color": "text",
+                "value": 0
               }
             ]
           }
@@ -396,7 +329,7 @@
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "datasource": {
@@ -459,7 +392,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               }
             ]
           }
@@ -576,7 +510,7 @@
           }
         ]
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "datasource": {
@@ -649,7 +583,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               }
             ]
           },
@@ -710,7 +645,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "datasource": {
@@ -753,8 +688,8 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "uid": "cectojnfyi3ggd"
+        "type": "questdb-questdb-datasource",
+        "uid": "eex9yg4jrtt6oa"
       },
       "fieldConfig": {
         "defaults": {
@@ -799,7 +734,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -831,44 +767,38 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
-          "alias": "Luftdruck",
-          "groupBy": [
-            {
-              "params": [
-                "$__interval"
-              ],
-              "type": "time"
-            },
-            {
-              "params": [
-                "null"
-              ],
-              "type": "fill"
-            }
-          ],
-          "measurement": "air",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "refId": "A",
-          "resultFormat": "time_series",
-          "select": [
-            [
+          "builderOptions": {
+            "fields": [],
+            "filters": [],
+            "groupBy": [],
+            "limit": "",
+            "metrics": [
               {
-                "params": [
-                  "pressure"
-                ],
-                "type": "field"
-              },
-              {
-                "params": [],
-                "type": "mean"
+                "aggregation": "avg",
+                "alias": "Luftdruck",
+                "field": "pressure"
               }
-            ]
-          ],
-          "tags": []
+            ],
+            "mode": "trend",
+            "orderBy": [],
+            "partitionBy": [],
+            "sampleByAlignTo": "CALENDAR",
+            "sampleByFill": [
+              "NULL_0"
+            ],
+            "table": "air",
+            "timeField": "timestamp"
+          },
+          "datasource": {
+            "type": "questdb-questdb-datasource",
+            "uid": "eex9yg4jrtt6oa"
+          },
+          "queryType": "builder",
+          "rawSql": "SELECT timestamp as time,  avg(pressure) Luftdruck FROM \"air\" WHERE $__timeFilter(timestamp) SAMPLE BY $__sampleByInterval FILL ( NULL ) ALIGN TO CALENDAR",
+          "refId": "A"
         }
       ],
       "title": "Luftdruck",
@@ -876,8 +806,8 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "uid": "cectojnfyi3ggd"
+        "type": "questdb-questdb-datasource",
+        "uid": "eex9yg4jrtt6oa"
       },
       "fieldConfig": {
         "defaults": {
@@ -922,7 +852,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -954,44 +885,38 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
-          "alias": "Temperatur",
-          "groupBy": [
-            {
-              "params": [
-                "$__interval"
-              ],
-              "type": "time"
-            },
-            {
-              "params": [
-                "null"
-              ],
-              "type": "fill"
-            }
-          ],
-          "measurement": "air",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "refId": "A",
-          "resultFormat": "time_series",
-          "select": [
-            [
+          "builderOptions": {
+            "fields": [],
+            "filters": [],
+            "groupBy": [],
+            "limit": "",
+            "metrics": [
               {
-                "params": [
-                  "temperature"
-                ],
-                "type": "field"
-              },
-              {
-                "params": [],
-                "type": "mean"
+                "aggregation": "avg",
+                "alias": "Temperatur",
+                "field": "temperature"
               }
-            ]
-          ],
-          "tags": []
+            ],
+            "mode": "trend",
+            "orderBy": [],
+            "partitionBy": [],
+            "sampleByAlignTo": "CALENDAR",
+            "sampleByFill": [
+              "NULL_0"
+            ],
+            "table": "air",
+            "timeField": "timestamp"
+          },
+          "datasource": {
+            "type": "questdb-questdb-datasource",
+            "uid": "eex9yg4jrtt6oa"
+          },
+          "queryType": "builder",
+          "rawSql": "SELECT timestamp as time,  avg(temperature) Temperatur FROM \"air\" WHERE $__timeFilter(timestamp) SAMPLE BY $__sampleByInterval FILL ( NULL ) ALIGN TO CALENDAR",
+          "refId": "A"
         }
       ],
       "title": "Lufttemperatur",
@@ -999,8 +924,8 @@
     },
     {
       "datasource": {
-        "type": "influxdb",
-        "uid": "cectojnfyi3ggd"
+        "type": "questdb-questdb-datasource",
+        "uid": "eex9yg4jrtt6oa"
       },
       "fieldConfig": {
         "defaults": {
@@ -1045,7 +970,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -1077,44 +1003,38 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
-          "alias": "relative Luftfeuchtigkeit",
-          "groupBy": [
-            {
-              "params": [
-                "$__interval"
-              ],
-              "type": "time"
-            },
-            {
-              "params": [
-                "null"
-              ],
-              "type": "fill"
-            }
-          ],
-          "measurement": "air",
-          "orderByTime": "ASC",
-          "policy": "default",
-          "refId": "A",
-          "resultFormat": "time_series",
-          "select": [
-            [
+          "builderOptions": {
+            "fields": [],
+            "filters": [],
+            "groupBy": [],
+            "limit": "",
+            "metrics": [
               {
-                "params": [
-                  "humidity"
-                ],
-                "type": "field"
-              },
-              {
-                "params": [],
-                "type": "mean"
+                "aggregation": "avg",
+                "alias": "Luftfeuchtigkeit",
+                "field": "humidity"
               }
-            ]
-          ],
-          "tags": []
+            ],
+            "mode": "trend",
+            "orderBy": [],
+            "partitionBy": [],
+            "sampleByAlignTo": "CALENDAR",
+            "sampleByFill": [
+              "NULL_0"
+            ],
+            "table": "air",
+            "timeField": "timestamp"
+          },
+          "datasource": {
+            "type": "questdb-questdb-datasource",
+            "uid": "eex9yg4jrtt6oa"
+          },
+          "queryType": "builder",
+          "rawSql": "SELECT timestamp as time,  avg(humidity) Luftfeuchtigkeit FROM \"air\" WHERE $__timeFilter(timestamp) SAMPLE BY $__sampleByInterval FILL ( NULL ) ALIGN TO CALENDAR",
+          "refId": "A"
         }
       ],
       "title": "Luftfeuchtigkeit",
@@ -1185,7 +1105,7 @@
           "unit": "hertz"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "alias": "dB Z",
@@ -1243,12 +1163,12 @@
     "list": []
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-2d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "DFLD",
   "uid": "fectqemeiurcwa",
-  "version": 3
+  "version": 9
 }

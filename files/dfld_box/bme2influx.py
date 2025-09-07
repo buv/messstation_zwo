@@ -5,8 +5,7 @@ import bme280
 import smbus3 as smbus
 import logging
 import argparse
-from influxdb import InfluxDBClient
-
+from questdb.ingress import Sender, Protocol, TimestampNanos
 
 I2C_ADDR = 0x76 # BME280 sensor address (default address)
 INTERVAL = 60
@@ -15,7 +14,7 @@ level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else loggin
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
 
 missing_env = []
-for k in "INFLUXDB_SERVER INFLUXDB_USERNAME INFLUXDB_PASSWORD INFLUXDB_DATABASE INFLUXDB_MEASUREMENT".split():
+for k in "QUESTDB_SERVER QUESTDB_USERNAME QUESTDB_PASSWORD QUESTDB_MEASUREMENT".split():
     if k not in os.environ:
         missing_env.append(k)
 if len(missing_env)>0:
@@ -23,45 +22,38 @@ if len(missing_env)>0:
     sys.exit(1)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--influxdb-server", help="hostname and port of influxdb server", default=os.environ['INFLUXDB_SERVER'])
-parser.add_argument("-u", "--username", help='username for influxdb', default=os.environ['INFLUXDB_USERNAME'])
-parser.add_argument("-p", "--password", help='password for influxdb', default=os.environ['INFLUXDB_PASSWORD'])
-parser.add_argument("-d", "--database", help="influxdb database name", default=os.environ['INFLUXDB_DATABASE'])
-parser.add_argument("-m", "--measurement", help="influxdb measurement name for events", default=os.environ['INFLUXDB_MEASUREMENT'])
+parser.add_argument("-q", "--questdb-server", help="hostname and port of questdb server", default=os.environ['QUESTDB_SERVER'])
+parser.add_argument("-u", "--username", help='username for questdb', default=os.environ['QUESTDB_USERNAME'])
+parser.add_argument("-p", "--password", help='password for questdb', default=os.environ['QUESTDB_PASSWORD'])
+parser.add_argument("-m", "--measurement", help="questdb measurement name for events", default=os.environ['QUESTDB_MEASUREMENT'])
 args = parser.parse_args()
 logging.info(args)
 
 
 def write_data(data, c):
-    # send data to influx DB
-    json_body = [
-        {
-            "measurement": args.measurement,
-            "tags": {
-                "source": "bme280"
-            },
-            "fields": {
-                "temperature": data.temperature,
-                "pressure": data.pressure,
-                "humidity": data.humidity
-            }
-        }
-    ]
-    c.write_points(json_body)
-    logging.debug(f'data written: t={json_body[0]["fields"]["temperature"]:6.2f}, '
-                 f'p={json_body[0]["fields"]["pressure"]:7.2f}, '
-                 f'rh={json_body[0]["fields"]["humidity"]:6.2f}')
+    # send data to questdb
+    try:
+        c.row(
+            args.measurement,
+            symbols={"source": "bme280"},
+            columns={"temperature": data.temperature, "pressure": data.pressure, "humidity": data.humidity},
+            at=TimestampNanos.now())
+        c.flush()
+        logging.debug(f'data written: t={data.temperature:6.2f}, p={data.pressure:7.2f}, rh={data.humidity:6.2f}')
+    except Exception as e:
+        logging.error(f'error writing data to questdb: {e}')
 
 
 while True:
     try:
-        # create connection to influxdb v1
-        logging.info(f'connecting to influx database ({args.influxdb_server})...')
-        influxdb_server = args.influxdb_server.split(':')
-        client = InfluxDBClient(host=influxdb_server[0], port=influxdb_server[1], username=args.username, password=args.password)
-        logging.debug(f'client={client}')
-        client.switch_database(args.database)
-        logging.info(f'switched to database "{args.database}"')
+        # create connection to questdb
+        logging.info(f'connecting to questdb database ({args.questdb_server})...')
+        questdb_server = args.questdb_server.split(':')
+        sender = Sender(Protocol.Http, questdb_server[0], int(questdb_server[1]), 
+                        username=os.environ['QUESTDB_USERNAME'], 
+                        password=os.environ['QUESTDB_PASSWORD'])
+        sender.establish()
+        logging.debug(f'sender={sender}')
 
         # Initialize I2C bus
         bus = smbus.SMBus(1)
@@ -73,7 +65,7 @@ while True:
             t0 = time.time()
             # Read sensor data
             data = bme280.sample(bus, I2C_ADDR, calibration_params)
-            write_data(data, client)
+            write_data(data, sender)
 
             dt = time.time()-t0
             time.sleep(INTERVAL-dt)
