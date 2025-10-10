@@ -1,7 +1,7 @@
 influxdb==5.3.2
 pyserial==3.5
-numpy==2.2.3
+numpy==2.3.3
 smbus3==0.5.5
 RPi.bme280==0.2.4
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.11
 uuid==1.30
