@@ -111,6 +111,26 @@ services:
       - network
     devices:
       - ${DEVICE_I2C}
+  bme2mqtt:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: bme2mqtt
+    entrypoint: python /dfld/bme2mqtt.py
+    environment:
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors/${NAME_AIR_MEASUREMENT}
+      - READOUT_INTERVAL=60
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=bme2mqtt
+      - homepage.icon=/icons/thermometer-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
+    networks:
+      - network
+    devices:
+      - ${DEVICE_I2C}
 {% endif %}
 
 {% if hw_conf["ADSB_AVAILABLE"]==1 %}
