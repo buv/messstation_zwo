@@ -11,7 +11,7 @@ import datetime
 import pytz
 
 from influxdb import InfluxDBClient
-from dfld_common import calc_crc, deobfuscate_string
+from dfld.util import calc_crc, deobfuscate_string
 
 level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO 
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
@@ -124,6 +124,9 @@ def get_data(now_dt, full_transfer):
              f"tz('{tz}')")
     logging.debug('SQL query: %s', query)
     result = client.query(query)
+    if len(result.raw["series"]) == 0:
+        logging.warning('no data found for date %s', date_str)
+        return None
     logging.debug('number of points in result: %s', len(result.raw["series"][0]["values"]))
 
     # manual calculation of local timezone for postgresql
