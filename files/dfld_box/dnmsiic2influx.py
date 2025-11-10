@@ -6,7 +6,7 @@ import logging
 import argparse
 import smbus3 as smbus
 from influxdb import InfluxDBClient
-from dfld_common import LiveView
+from files.dfld_box.dfld.LiveView import LiveView
 
 I2C_ADDR = 0x55 # DNMS slave address
 INTERVAL = 1

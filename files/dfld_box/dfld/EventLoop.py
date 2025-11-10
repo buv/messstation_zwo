@@ -1,34 +1,39 @@
 import os
-import abc
 import sys
+import json
 import time
 import logging
 from .DataSink import DataSink
 from .DataSource import DataSource
 # create class for event loop
 
-class EventLoop(abc.ABC):
+class EventLoop(object):
     def __init__(self, data_source: DataSource, data_sink: DataSink):
-        self.config = os.environ
-        self.readout_interval = float(self.config.get('READOUT_INTERVAL', 60))
-        self.retry_interval = float(self.config.get('RETRY_INTERVAL', 120))
         self.data_source = data_source
         self.data_sink = data_sink
-        self.log_level = self.config.get('LOG_LEVEL', 'INFO').upper()
-        logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
-        self.client_name = self.config.get('CLIENT_NAME', sys.argv[0].split('/')[-1].replace('.py',''))
-        self.logger = logging.getLogger(self.client_name)
-        self.logger.info(f"EventLoop starting with client_name={self.client_name}")
-        self.logger.info(f"EventLoop initialized with readout_interval={self.readout_interval}, retry_interval={self.retry_interval}")
-        if self.data_source:
-            self.data_source.set_logger(self.logger)
-        if self.data_sink:
-            self.data_sink.set_logger(self.logger)
+        self.readout_interval = float(os.getenv('READOUT_INTERVAL', 60))
+        self.retry_interval = float(os.getenv('RETRY_INTERVAL', 120))
         self.running = False
 
-    @abc.abstractmethod
+        self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+        logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
+        self.client_name = os.getenv('CLIENT_NAME', sys.argv[0].split('/')[-1].replace('.py',''))
+        self.logger = logging.getLogger(self.client_name)
+
+        self.logger.info(f"EventLoop starting with client_name={self.client_name}")
+        self.logger.info(f"EventLoop initialized with readout_interval={self.readout_interval}, retry_interval={self.retry_interval}")
+
+    def get_logger(self) -> logging.Logger:
+        return self.logger
+    
+    def set_logger(self, logger: logging.Logger):
+        self.logger = logger
+
     def process(self, data: dict, sink: DataSink):
-        pass
+        if data and isinstance(data, dict):
+            sink.write(json.dumps(data))
+        else:
+            self.logger.warning('No valid data to process')
 
     def start(self):
         self.running = True

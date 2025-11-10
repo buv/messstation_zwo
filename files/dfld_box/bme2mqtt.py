@@ -16,5 +16,7 @@ class MyEventLoop(EventLoop):
         else:
             self.logger.warning('No data to process')
 
-event_loop = MyEventLoop(Bme280DataSource(), MqttDataSink())
+source = Bme280DataSource()
+sink = MqttDataSink()
+event_loop = MyEventLoop(source, sink)
 event_loop.start()

@@ -28,26 +28,21 @@ services:
 {% endif %}
 
 {% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
-  dfld2influx:
+  dfld2mqtt:
     image: dfld_box
     restart: unless-stopped
-    container_name: dfld2influx
-    entrypoint: python /dfld/dfld2influx.py
+    container_name: dfld2mqtt
+    entrypoint: python /dfld/dfld2mqtt.py
     environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
-      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
-      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
-      - INFLUXDB_MEASUREMENT=${INFLUXDB_DFLD_MEASUREMENT}
       - DEVICE=${DEVICE_DFLD}
-      - DFLD_REGION=${DFLD_REGION}
-      - DFLD_STATION=${DFLD_STATION}
-      - DFLD_CKSUM=${DFLD_CKSUM}
-      - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
-      - LOG_LEVEL=INFO
+      - DFLD_BAUDRATE=9600
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors/noise/${SOURCE_DFLD}
+      - READOUT_INTERVAL=0.0
+      - LOG_LEVEL=DEBUG
     labels:
       - homepage.group=Infrastructure
-      - homepage.name=dnms2influx
+      - homepage.name=dnms2mqtt
       - homepage.icon=https://www.dfld.de/Basics/images/Logo-DFLD.svg
       - homepage.description=Fancy legacy stuff
       - homepage.showStats=true
@@ -58,25 +53,20 @@ services:
 {% endif %}
 
 {% if hw_conf["DNMS_I2C_AVAILABLE"]==1 %}
-  dnmsiic2influx:
+  dnmsiic2mqtt:
     image: dfld_box
     restart: unless-stopped
-    container_name: dnmsiic2influx
-    entrypoint: python /dfld/dnmsiic2influx.py
+    container_name: dnmsiic2mqtt
+    entrypoint: python /dfld/dnmsiic2mqtt.py
     environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
-      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
-      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
-      - INFLUXDB_MEASUREMENT=${INFLUXDB_DNMSIIC_MEASUREMENT}
-      - DFLD_REGION=${DFLD_REGION}
-      - DFLD_STATION=${DFLD_STATION}
-      - DFLD_CKSUM=${DFLD_CKSUM}
-      - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
-      - LOG_LEVEL=INFO
+      - DNMS_I2C_ADDRESS=0x56
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors/noise/${SOURCE_DNMS_I2C}
+      - READOUT_INTERVAL=1.0
+      - LOG_LEVEL=DEBUG
     labels:
       - homepage.group=Infrastructure
-      - homepage.name=dnmsiic2influx
+      - homepage.name=dnmsiic2mqtt
       - homepage.icon=/icons/processor-icon.svg
       - homepage.description=We get the noise
       - homepage.showStats=true
@@ -184,6 +174,28 @@ services:
     networks:
       - network
 {% endif %}
+
+  udp2mqtt:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: udp2mqtt
+    entrypoint: python /dfld/udp2mqtt.py
+    environment:
+      - UDP_LISTEN_PORT=11883
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors/noise/${SOURCE_UDP}
+      - READOUT_INTERVAL=0.0
+      - LOG_LEVEL=DEBUG
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=udp2mqtt
+      - homepage.icon=/icons/thermometer-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
+    ports:
+      - 11883:11883/udp
+    networks:
+      - network
 
   mqtt2tsdb:
     image: dfld_box
