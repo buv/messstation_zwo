@@ -145,6 +145,8 @@ services:
   mqtt:
     image: eclipse-mosquitto:latest
     container_name: mqtt
+    networks:
+      - network
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -164,6 +166,8 @@ services:
     image: emqx/mqttx-web
     container_name: mqtt-x
     restart: unless-stopped
+    networks:
+      - network
     ports:
       - 8081:80
     labels:

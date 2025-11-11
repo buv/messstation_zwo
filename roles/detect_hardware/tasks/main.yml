@@ -4,7 +4,7 @@
   # when: ansible_facts.architecture == 'aarch64'
   block:
     - name: Run hardware detection in docker container
-      ansible.builtin.command: docker run --rm --privileged dfld_box python detect_hw.py
+      ansible.builtin.command: docker run --rm --privileged -v /dev:/dev:ro dfld_box python detect_hw.py
       register: detect_hw_response
       changed_when: false
 

@@ -38,13 +38,13 @@ for s in supported_devices:
 #
 # check tty devices
 #
-devices = set([str(comport.device).split('/')[-1] for comport in serial.tools.list_ports.comports()])
+devices = set([str(comport.device).split('/')[-1] for comport in serial.tools.list_ports.comports(include_links=True)])
 
 # TODO: this is thin ice, needs protocol checking on the long run
 
-if 'ttyACM0' in devices:
+if 'ttyDNMS' in devices:
     env['DFLD_DNMS_AVAILABLE'] = 1
-    env['DEVICE_DNMS'] = '/dev/ttyACM0'
+    env['DEVICE_DNMS'] = '/dev/ttyDNMS'
 
 if 'ttyUSB0' in devices:
     env['DFLD_LEGACY_AVAILABLE'] = 1
