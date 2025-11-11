@@ -1,0 +1,132 @@
+services:
+{% if hw_conf["ADSB_AVAILABLE"]==1 %}
+  ultrafeeder:
+    image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
+    # Note - if you want to enable telegraf for use with InfluxDB/Prometheus and Grafana,
+    # use the following image instead:
+    # image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf
+    container_name: ultrafeeder
+    hostname: ultrafeeder
+    restart: unless-stopped
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    ports:
+      - 8080:80/tcp
+    environment:
+    # --------------------------------------------------
+    # general parameters:
+      - LOGLEVEL=error
+      - TZ=${TZ}
+    # --------------------------------------------------
+    # SDR related parameters:
+      - READSB_DEVICE_TYPE=rtlsdr
+    #
+    # --------------------------------------------------
+    # readsb/decoder parameters:
+      - READSB_LAT=${LAT}
+      - READSB_LON=${LON}
+      - READSB_ALT=${ALT_M}m
+      - READSB_RX_LOCATION_ACCURACY=2
+      - READSB_STATS_RANGE=true
+    #
+    # --------------------------------------------------
+    #
+    # --------------------------------------------------
+    # TAR1090 (Map Web Page) parameters:
+      - UPDATE_TAR1090=true
+      - TAR1090_DEFAULTCENTERLAT=${LAT}
+      - TAR1090_DEFAULTCENTERLON=${LON}
+      - TAR1090_MESSAGERATEINTITLE=true
+      - TAR1090_PAGETITLE=DFLD
+      - TAR1090_PLANECOUNTINTITLE=true
+      - TAR1090_ENABLE_AC_DB=true
+      - TAR1090_FLIGHTAWARELINKS=true
+      - TAR1090_SITESHOW=true
+      - TAR1090_RANGE_OUTLINE_COLORED_BY_ALTITUDE=true
+      - TAR1090_RANGE_OUTLINE_WIDTH=2.0
+      - TAR1090_RANGERINGSDISTANCES=50,100,150,200
+      - TAR1090_RANGERINGSCOLORS='#1A237E','#0D47A1','#42A5F5','#64B5F6'
+      - TAR1090_USEROUTEAPI=true
+    #
+    # --------------------------------------------------
+    # GRAPHS1090 (Decoder and System Status Web Page) parameters:
+      - GRAPHS1090_DARKMODE=true
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=adsb ultrafeeder
+      - homepage.icon=https://avatars.githubusercontent.com/u/98966214?v=4
+      - homepage.description=Don't miss a single plane
+      - homepage.showStats=true
+    volumes:
+      - ultrafeeder-globe_history:/var/globe_history
+      - ultrafeeder-graphs1090:/var/lib/collectd
+      - /proc/diskstats:/proc/diskstats:ro
+      - /dev/bus/usb:/dev/bus/usb
+    tmpfs:
+      - /run:exec,size=256M
+      - /tmp:size=128M
+      - /var/log:size=32M
+    networks:
+      - network
+{% endif %}
+
+  influxdb:
+    image: influxdb:1.11.8-alpine
+    restart: unless-stopped
+    container_name: influxdb
+    networks:
+      - network
+    ports:
+      - 8086:8086
+      - 8088:8088
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+      - influxdb-config:/etc/influxdb
+    environment:
+      - INFLUXDB_DB=${INFLUXDB_DATABASE}
+      - INFLUXDB_ADMIN_USER=${INFLUX_ADMIN_USERNAME}
+      - INFLUXDB_ADMIN_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=InfluxDB
+      - homepage.icon=influxdb.svg
+      - homepage.description=InfluxDB is 😎
+      - homepage.showStats=true
+
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ${DOCKER_EXTERNAL_ROOT}/mqtt/config:/mosquitto/config:rw
+      - mqtt-data:/mosquitto/data:rw
+      - mqtt-log:/mosquitto/log:rw
+    restart: unless-stopped
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=Eclipse Mosquitto
+      - homepage.icon=mosquitto.svg
+      - homepage.description=We transfer all the data
+      - homepage.showStats=true
+
+volumes:
+  ultrafeeder-globe_history:
+  ultrafeeder-graphs1090:
+  influxdb-data:
+  influxdb-config:
+  mqtt-data:
+  mqtt-log:
+
+networks:
+    network:
+        name: dfld_network
+        driver: bridge
+        driver_opts:
+            com.docker.network.enable_ipv6: "false"
+        ipam:
+            driver: default
+            config:
+                - subnet: 172.21.0.0/24
+                  gateway: 172.21.0.1
