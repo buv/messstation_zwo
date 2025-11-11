@@ -1,0 +1,77 @@
+#!/usr/bin/env ansible-playbook
+
+- name: Setup DFLD Gateway on Raspberry Pi Zero
+  hosts: all
+  gather_facts: true
+  become: true
+
+  roles:
+    - role: configure-raspi
+    - role: geerlingguy.docker
+      vars:
+          docker_users:
+          - "{{ dfld_user }}"
+    - role: configure-raspi
+    - role: build-images-core
+    - role: detect_hardware
+    - role: deploy_infrastructure_core
+    - role: deploy_ingress_core
+
+
+  post_tasks:
+    - name: Print error message in case of hardware detection failure
+      when: detect_hw_response.failed
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - 'Hardware detection failed.'
+          - 'Please check requirements and your hardware.'
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+
+    - name: Ready message
+      when: not detect_hw_response.failed
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+          - 'DFLD Messstation ZWO is{{ (detect_hw_response.failed) | ternary(" not ", " ") }}ready.'
+          - ''
+          - 'We setup a dashboard for you at: http://{{ messstation_fqdn }}'
+          - ''
+          - 'You can access the portainer services at: https://{{ messstation_fqdn }}:9443 with User: {{ portainer_username }} / Password: {{ portainer_password }}'
+          - 'You can access the grafana services at: http://{{ messstation_fqdn }}:3000 with User: {{ grafana_username }} / Password: {{ grafana_password }}'
+          - 'You can access the pgadmin services at: http://{{ messstation_fqdn }}:8083 with User: {{ pgadmin_email }} / Password: {{ pgadmin_password }}'
+          - ''
+          - 'You can access the influxdb with: User: {{ influxdb_username }} / Password: {{ influxdb_password }}'
+          - 'You can access the postgres with: User: {{ postgres_username }} / Password: {{ postgres_password }}'
+          - ''
+          - '{{ (detect_hw_response.failed) | ternary("You may look around. But nothing will be measured.", "Happy measuring!") }}'
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - 'Hardware setup:'
+          - ''
+          - 'ADS-B Reciever detect: {{ (hw_conf.ADSB_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DFLD DNMS detect:      {{ (hw_conf.DFLD_DNMS_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DFLD_LEGACY detect:    {{ (hw_conf.DFLD_LEGACY_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DNMS_I2C detect:       {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'BME280 device detect:  {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+
+    - name: Check if reboot is required
+      when: check_reboot.stat.exists
+      block:
+        - name: Inform about reboot
+          ansible.builtin.pause:
+            minutes: 1
+            prompt: "Waiting for the system to reboot. You may copy the above messages for later use."
+
+        - name: Reboot System
+          ansible.builtin.reboot:
+            msg: |
+              Reboot is required.
+              Your System will reboot now.
+            reboot_timeout: 120

@@ -10,5 +10,11 @@ fi
 # install required roles
 ansible-galaxy role install -r requirements.yml -p ./roles
 
-# playbook
-./dfld.yml $HOST_ARGS -i inventory.yml
+# use second argument to distinguish between different installations:
+# if value starts with "gateway", use gateway installation
+# else use messstation installation
+if [[ "$2" == zero ]]; then
+  ansible-playbook ./zero.yml $HOST_ARGS -i inventory.yml
+else
+  ansible-playbook ./dfld.yml $HOST_ARGS -i inventory.yml
+fi
