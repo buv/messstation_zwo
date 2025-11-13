@@ -102,23 +102,29 @@ def get_data(now_dt, full_transfer):
     else:
         date_str = now_dt.strftime('%Y-%m-%d')
 
-    # create connection to influxdb v1
-    logging.info('connecting to influx database (%s)...', os.environ["INFLUXDB_SERVER"])
-    influxdb_server = os.environ["INFLUXDB_SERVER"].split(':')
-    client = InfluxDBClient(
-        host=influxdb_server[0],
-        port=influxdb_server[1],
-        username=os.environ["INFLUXDB_USERNAME"],
-        password=os.environ["INFLUXDB_PASSWORD"]
-    )
-    logging.debug('client=%s', client)
-    client.switch_database(os.environ["INFLUXDB_DATABASE"])
-    logging.debug('switched to database "%s"', os.environ["INFLUXDB_DATABASE"])
+    try:
+        # create connection to influxdb v1
+        logging.info('connecting to influx database (%s)...', os.environ["INFLUXDB_SERVER"])
+        influxdb_server = os.environ["INFLUXDB_SERVER"].split(':')
+        client = InfluxDBClient(
+            host=influxdb_server[0],
+            port=influxdb_server[1],
+            username=os.environ["INFLUXDB_USERNAME"],
+            password=os.environ["INFLUXDB_PASSWORD"]
+        )
+        logging.debug('client=%s', client)
+        client.switch_database(os.environ["INFLUXDB_DATABASE"])
+        logging.debug('switched to database "%s"', os.environ["INFLUXDB_DATABASE"])
+    except Exception as e:
+        logging.error('failed to connect to influxdb: %s', e)
+        return None
+    
+    measurement = os.environ["INFLUXDB_MEASUREMENT"]
 
     # read one day of data from influxdb v1
     # local time zone calculation is done by database
     tz = os.environ['TZ']
-    query = (f"SELECT dB_A_avg FROM dnms_serial WHERE "
+    query = (f"SELECT dB_A_avg FROM {measurement} WHERE "
              f"time >= ('{date_str}' -     1s) AND "
              f"time <  ('{date_str}' + 86400s) "
              f"tz('{tz}')")

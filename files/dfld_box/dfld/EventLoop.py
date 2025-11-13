@@ -31,7 +31,7 @@ class EventLoop(object):
 
     def process(self, data: dict, sink: DataSink):
         if data and isinstance(data, dict):
-            sink.write(json.dumps(data))
+            sink.write(json.dumps({"source": self.data_source.source} | data))
         else:
             self.logger.warning('No valid data to process')
 

@@ -60,6 +60,9 @@ def main():
     # Automatisches Reconnect mit Backoff
     client.reconnect_delay_set(min_delay=1, max_delay=30)
 
+    # keys to transfer as tags
+    tag_keys = ["source"]
+
     # Callback: Verbindung hergestellt → Topic abonnieren
     def on_connect(cli, userdata, flags, rc):
         # rc == 0 bedeutet Erfolg
@@ -83,9 +86,15 @@ def main():
                 if "ts" in data:
                     ts = int(data["ts"])  
                     del data["ts"]  
+                # move tag keys to separate dict
+                tags = {k: str(data[k]) for k in tag_keys if k in data}
+                for k in tags.keys():
+                    del data[k]
+               
                 json_body = [
                     {
                         "measurement": topic.split('/')[-1],  # letzter Teil des Topics als Messung
+                        "tags": tags,
                         "fields": data,
                         "time": ts
                     }
