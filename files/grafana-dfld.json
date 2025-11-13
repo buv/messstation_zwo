@@ -239,10 +239,10 @@
               "type": "fill"
             }
           ],
-          "measurement": "dnms_serial",
+          "measurement": "spl",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"dB_A_avg\") FROM \"dnms_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"dB_A_avg\") FROM \"spl\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
@@ -263,7 +263,7 @@
           "tags": []
         },
         {
-          "alias": "DFLD dB A avg",
+          "alias": "DNMS dB A min",
           "datasource": {
             "type": "influxdb",
             "uid": "cectojnfyi3ggd"
@@ -282,11 +282,11 @@
               "type": "fill"
             }
           ],
-          "hide": false,
-          "measurement": "dfld_serial",
+          "hide": true,
+          "measurement": "spl",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"dB_A_avg\") FROM \"dfld_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"dB_A_min\") FROM \"spl\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series",
@@ -294,7 +294,7 @@
             [
               {
                 "params": [
-                  "dB_A_avg"
+                  "dB_A_min"
                 ],
                 "type": "field"
               },
@@ -307,7 +307,7 @@
           "tags": []
         },
         {
-          "alias": "DNMS i2c dB A avg",
+          "alias": "DNMS dB A max",
           "datasource": {
             "type": "influxdb",
             "uid": "cectojnfyi3ggd"
@@ -326,8 +326,8 @@
               "type": "fill"
             }
           ],
-          "hide": false,
-          "measurement": "dnms_i2c",
+          "hide": true,
+          "measurement": "spl",
           "orderByTime": "ASC",
           "policy": "default",
           "refId": "C",
@@ -336,7 +336,7 @@
             [
               {
                 "params": [
-                  "dB_A_avg"
+                  "dB_A_max"
                 ],
                 "type": "field"
               },
@@ -1207,10 +1207,10 @@
               "type": "fill"
             }
           ],
-          "measurement": "dnms_serial",
+          "measurement": "thirds",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"LZeq20\"), mean(\"LZeq25\"), mean(\"LZeq31.5\"), mean(\"LZeq40\"), mean(\"LZeq50\"), mean(\"LZeq63\"), mean(\"LZeq80\"), mean(\"LZeq100\"), mean(\"LZeq125\"), mean(\"LZeq160\"), mean(\"LZeq200\"), mean(\"LZeq250\"), mean(\"LZeq315\"), mean(\"LZeq400\"), mean(\"LZeq500\"), mean(\"LZeq630\"), mean(\"LZeq800\"), mean(\"LZeq1000\"), mean(\"LZeq1250\"), mean(\"LZeq1600\"), mean(\"LZeq2000\"), mean(\"LZeq2500\"), mean(\"LZeq3150\"), mean(\"LZeq4000\"), mean(\"LZeq5000\"), mean(\"LZeq6300\"), mean(\"LZeq8000\"), mean(\"LZeq10000\"), mean(\"LZeq12500\"), mean(\"LZeq16000\"), mean(\"LZeq20000\") FROM \"dnms_serial\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"LZeq20\"), mean(\"LZeq25\"), mean(\"LZeq31.5\"), mean(\"LZeq40\"), mean(\"LZeq50\"), mean(\"LZeq63\"), mean(\"LZeq80\"), mean(\"LZeq100\"), mean(\"LZeq125\"), mean(\"LZeq160\"), mean(\"LZeq200\"), mean(\"LZeq250\"), mean(\"LZeq315\"), mean(\"LZeq400\"), mean(\"LZeq500\"), mean(\"LZeq630\"), mean(\"LZeq800\"), mean(\"LZeq1000\"), mean(\"LZeq1250\"), mean(\"LZeq1600\"), mean(\"LZeq2000\"), mean(\"LZeq2500\"), mean(\"LZeq3150\"), mean(\"LZeq4000\"), mean(\"LZeq5000\"), mean(\"LZeq6300\"), mean(\"LZeq8000\"), mean(\"LZeq10000\"), mean(\"LZeq12500\"), mean(\"LZeq16000\"), mean(\"LZeq20000\") FROM \"thirds\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",

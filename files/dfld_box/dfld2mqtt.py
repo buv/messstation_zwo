@@ -8,14 +8,7 @@ from dfld import DataSink, MqttDataSink
 from dfld import AkModulDataSource
 from dfld import EventLoop
 
-class MyEventLoop(EventLoop):
-    def process(self, data: dict, sink: DataSink):
-        if data:
-            msg = json.dumps({"source": "ak-modul"} | data)
-            sink.write(msg)
-        else:
-            self.logger.warning('No data to process')
 source = AkModulDataSource()
 sink = MqttDataSink()
-event_loop = MyEventLoop(source, sink)
+event_loop = EventLoop(source, sink)
 event_loop.start()

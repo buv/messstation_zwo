@@ -8,6 +8,7 @@ class DataSource(abc.ABC):
     def __init__(self):
         self.connected = False
         self.config = os.environ
+        self.source = "unknown"
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
@@ -36,6 +37,7 @@ class DataSource(abc.ABC):
 class Bme280DataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
+        self.source = "bme280"
         self.i2c_addr = int(os.getenv('BME280_I2C_ADDR', '0x76'), 16)
         self.bus_num = int(os.getenv('I2C_BUS', '1'))
         self.logger.debug(f"BME280 DataSource config: i2c_addr={hex(self.i2c_addr)}, bus_num={self.bus_num}")
@@ -77,6 +79,7 @@ class Bme280DataSource(DataSource, abc.ABC):
 class DNMSi2cDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
+        self.source = "dnms_i2c"
         self.i2c_addr = int(self.config.get('DNMS_I2C_ADDR', '0x55'), 16)
         self.bus_num = int(self.config.get('I2C_BUS', '1'))
         self.microphone = int(os.getenv('DNMS_MICROPHONE_TYPE', '28'))
@@ -138,9 +141,10 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
 
             ts = int(time.time() * 1e9)
             data = {
-                "dB_A_avg": data[0],
-                "dB_A_min": data[1],
-                "dB_A_max": data[2],
+                # round to 2 decimal places
+                "dB_A_avg": round(data[0], 2),
+                "dB_A_min": round(data[1], 2),
+                "dB_A_max": round(data[2], 2),
                 "ts": ts
             }
             logging.debug(f"Read data from DNMS i2c: {data}")
@@ -177,6 +181,7 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
 class AkModulDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
+        self.source = "ak_modul"
         self.device = os.getenv('AK_MODUL_DEVICE', '/dev/ttyUSB0')
         self.baudrate = int(os.getenv('AK_MODUL_BAUDRATE', '9600'))
         self.logger.debug(f"AK-Modul DataSource config: device={self.device}, baudrate={self.baudrate}")
@@ -220,9 +225,10 @@ class DNMSDataSource(DataSource, abc.ABC):
 
     def __init__(self):
         super().__init__()
+        self.source = "dnms_serial"        
         config = os.environ
         self.device = config.get('DNMS_DEVICE', '/dev/ttyDNMS')
-        self.logger.debug(f"DNMS DataSource config: device={self.device}")
+        self.loggdier.debug(f"DNMS DataSource config: device={self.device}")
         self.baudrate = config.get('DNMS_BAUDRATE', )
         self.ser = None
         self.connected = False
@@ -252,11 +258,11 @@ class DNMSDataSource(DataSource, abc.ABC):
                 fields = {"ts": ts} 
                 # band processing
                 if data_str[0]=='B':
-                    fields |= { f'L{data_str[1]}eq'+str(k): float(v) for k, v in zip(self.BAND_FREQ, data_str[2:]) }
+                    fields |= { f'L{data_str[1]}eq'+str(k): round(float(v), 2) for k, v in zip(self.BAND_FREQ, data_str[2:]) }
 
                 # summary processing
                 if data_str[0]=='S':
-                    fields |= { f'dB_{data_str[1]}_{str(k)}': float(v) for k, v in zip(['avg', 'min', 'max'], data_str[2:]) }
+                    fields |= { f'dB_{data_str[1]}_{str(k)}': round(float(v), 2) for k, v in zip(['avg', 'min', 'max'], data_str[2:]) }
                 
                 return fields     
         except Exception as e:
@@ -270,6 +276,7 @@ class DNMSDataSource(DataSource, abc.ABC):
 class UdpDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
+        self.source = "udp"
         self.udp_host = os.getenv('UDP_LISTEN_IP', '0.0.0.0')
         self.udp_port = int(os.getenv('UDP_LISTEN_PORT', '11883'))
         self.logger.debug(f"UDP DataSource config: udp_ip={self.udp_host}, udp_port={self.udp_port}")

@@ -96,6 +96,8 @@ services:
   mqtt:
     image: eclipse-mosquitto:latest
     container_name: mqtt
+    networks:
+      - network
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -112,12 +114,14 @@ services:
       - homepage.showStats=true
 
 volumes:
-  ultrafeeder-globe_history:
-  ultrafeeder-graphs1090:
   influxdb-data:
   influxdb-config:
   mqtt-data:
   mqtt-log:
+{% if hw_conf["ADSB_AVAILABLE"]==1 %}
+  ultrafeeder-globe_history:
+  ultrafeeder-graphs1090:
+{% endif %}
 
 networks:
     network:
