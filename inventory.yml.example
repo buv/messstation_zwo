@@ -2,16 +2,16 @@ all:
   vars:
     # fqdn oder ip adresse, unter der die homepage erreichbar ist
     # default ist die von ansible automatische fqdn der messbox
-    messstation_fqdn: "{{ ansible_fqdn }}"
+    messstation_fqdn: "{{ ansible_hostname }}"
     # liste von zusätzlichen fqdns oder ips, unter der die homepage erreichbar sein soll
     user_allowed_homepage_hosts:
       - ""
       - ""
       - ""
 
-    station_lon: "0.0"
-    station_lat: "0.0"
-    station_alt: "0.0"
+    station_lon: ""
+    station_lat: ""
+    station_alt: ""
     station_city: ""
 
     dfld_region: ""
@@ -19,6 +19,7 @@ all:
     dfld_cksum: ""
     dfld_liveview: ""
     dfld_legacy: ""
+    
 
     dfld_user: "dfld"
     dfld_group: "dfld"
@@ -40,7 +41,7 @@ all:
 
     pgadmin_email: "{{ dfld_user }}@dfld.de"
     pgadmin_password: "{{ dfld_user }}"
-    
+
     #
     # ansible part
     #
