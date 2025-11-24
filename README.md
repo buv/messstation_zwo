@@ -42,6 +42,9 @@ cp inventory.yml.example inventory.yml
 emacs/vim/nano inventory.yml
 emacs/vim/nano ansible.cfg
 
+# Download required external Galaxy roles
+ansible-galaxy install -p roles -r requirements.yml
+
 # Playbook lokal starten und Messstation ZWO installieren.
 ./install_messstation.sh
 
