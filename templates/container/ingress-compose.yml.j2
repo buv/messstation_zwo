@@ -84,11 +84,7 @@ services:
     entrypoint: python /dfld/bme2mqtt.py
     environment:
       - MQTT_SERVER=${MQTT_SERVER}
-<<<<<<< HEAD
-      - MQTT_TOPIC=/dfld/sensors/air/bme280
-=======
       - MQTT_TOPIC=/dfld/sensors/air
->>>>>>> 2c5363d (ftp fixes, inventory update, ftp hardening)
       - READOUT_INTERVAL=60
       - LOG_LEVEL=INFO
     labels:
@@ -179,11 +175,7 @@ services:
       - network
 {% endif %}
 
-<<<<<<< HEAD
-{% if not hw_conf["DFLD_DNMS_AVAILABLE"]==1 and not hw_conf["DFLD_LEGACY_AVAILABLE"]==1 and not hw_conf["DNMS_I2C_AVAILABLE"]==1 %}
-=======
 {% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0  and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
->>>>>>> 2c5363d (ftp fixes, inventory update, ftp hardening)
   udp2mqtt:
     image: dfld_box
     restart: unless-stopped
