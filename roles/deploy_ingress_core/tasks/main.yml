@@ -32,7 +32,6 @@
   ansible.builtin.command:
     cmd: docker compose --env-file compose.env up -d
     chdir: "{{ dfld_dir }}/ingress"
-  become_user: "{{ dfld_user }}"
   environment:
     COMPOSE_FILE: "{{ dfld_dir }}/ingress/docker-compose.yml"
     COMPOSE_PROJECT_NAME: "ingress"

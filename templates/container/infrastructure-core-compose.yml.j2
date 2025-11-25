@@ -10,6 +10,8 @@ services:
     restart: unless-stopped
     device_cgroup_rules:
       - "c 189:* rwm"
+    networks:
+      - network
     ports:
       - 8080:80/tcp
     environment:
@@ -66,14 +68,14 @@ services:
       - /run:exec,size=256M
       - /tmp:size=128M
       - /var/log:size=32M
-    networks:
-      - network
 {% endif %}
 
   influxdb:
     image: influxdb:1.11.8-alpine
     restart: unless-stopped
     container_name: influxdb
+    networks:
+      - network
     ports:
       - 8086:8086
       - 8088:8088
@@ -90,8 +92,6 @@ services:
       - homepage.icon=influxdb.svg
       - homepage.description=InfluxDB is 😎
       - homepage.showStats=true
-    networks:
-      - network
 
   mqtt:
     image: eclipse-mosquitto:latest
@@ -112,8 +112,6 @@ services:
       - homepage.icon=mosquitto.svg
       - homepage.description=We transfer all the data
       - homepage.showStats=true
-    networks:
-      - network
 
 volumes:
   influxdb-data:

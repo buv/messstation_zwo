@@ -196,31 +196,9 @@ def check_for_transfer():
             logging.error('ftp error: %s', e)
             logging.error('transfer failed, retry in 1 hour')
 
+# inital delay to wait for system startup
+logging.info('waiting 60 seconds for system startup...')
+time.sleep(60)
 while True:
     check_for_transfer()
     time.sleep(3600)
-
-
-
-
-
-# # create connection to postgresql
-# conn = psycopg2.connect( 
-#     host='10.2.1.42', 
-#     port=5432, 
-#     dbname='dfld',
-#     user='dfld',
-#     password='dfld'
-# )
-# cur = conn.cursor()
-# # read timestamps from flyover table
-# sql = (f"SELECT eventtime, dist FROM event_raw WHERE "
-#        f"eventtime >= '{yesterday_start}' AND eventtime < '{today_start}' "
-#        f"ORDER BY eventtime")
-# print(f'sql: {sql}')
-# cur.execute(sql)
-# rows = cur.fetchall()
-# print(f'number of rows: {len(rows)}')
-# print(rows[0], rows[0][0].replace(tzinfo=datetime.timezone.utc).timestamp())
-# print('...')
-# print(rows[-1])
