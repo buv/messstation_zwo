@@ -1,0 +1,155 @@
+services:
+  # Unified sensor to MQTT service - replaces individual sensor services
+  sensor2mqtt:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: sensor2mqtt
+    entrypoint: python /dfld/sensor2mqtt.py
+    environment:
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors
+      - READOUT_INTERVAL=60
+      - RETRY_INTERVAL=120
+      - LOG_LEVEL=INFO
+      # DNMS Serial config
+      - DNMS_DEVICE=${DEVICE_DNMS:-/dev/ttyDNMS}
+      - DNMS_BAUDRATE=500000
+      # DFLD Legacy config
+      - AK_MODUL_DEVICE=${DEVICE_DFLD:-/dev/ttyUSB0}
+      - AK_MODUL_BAUDRATE=9600
+      # I2C config
+      - DNMS_I2C_ADDR=0x55
+      - BME280_I2C_ADDR=0x76
+      - I2C_BUS=1
+      - DNMS_MICROPHONE_TYPE=28
+      # UDP config
+      - UDP_LISTEN_PORT=11883
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=sensor2mqtt
+      - homepage.icon=/icons/thermometer-icon.svg
+      - homepage.description=Unified sensor data collector
+      - homepage.showStats=true
+    networks:
+      - network
+    devices:
+{% if hw_conf["DFLD_DNMS_AVAILABLE"]==1 %}
+      - ${DEVICE_DNMS}
+{% endif %}
+{% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
+      - ${DEVICE_DFLD}
+{% endif %}
+{% if hw_conf["DNMS_I2C_AVAILABLE"]==1 or hw_conf["BME280_AVAILABLE"]==1 %}
+      - ${DEVICE_I2C}
+{% endif %}
+{% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0 and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
+    # No hardware sensors detected, only UDP listener active
+    ports:
+      - 11883:11883/udp
+{% endif %}
+    # Required for hardware detection and access
+    privileged: true
+
+{% if hw_conf["ADSB_AVAILABLE"]==1 %}
+  detect_flyover:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: detect_flyover
+    entrypoint: python /dfld/detect_flyover.py
+    environment:
+      - POSTGRES_USERNAME=${POSTGRES_ADMIN_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+      - POSTGRES_SERVER=${POSTGRES_SERVERNAME}:${POSTGRES_SERVERPORT}
+      - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
+      - STATION_POSITION=${LON}:${LAT}:${ALT_M}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=detect_flyover
+      - homepage.icon=/icons/flight-landing-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
+    networks:
+      - network
+{% endif %}
+
+{% if dfld_legacy | length != 0 %}
+  tsdb2ftp:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: tsdb2ftp
+    entrypoint: python /dfld/tsdb2ftp.py
+    environment:
+      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - INFLUXDB_MEASUREMENT=spl
+      - DFLD_REGION=${DFLD_REGION}
+      - DFLD_STATION=${DFLD_STATION}
+      - DFLD_CKSUM=${DFLD_CKSUM}
+      - DFLD_LEGACY=${DFLD_LEGACY}
+      - TZ=${TZ}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=tsdb2ftp
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Push the data home
+      - homepage.showStats=true
+    networks:
+      - network
+
+  mqtt2liveview:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: mqtt2liveview
+    entrypoint: python /dfld/mqtt2liveview.py
+    environment:
+      - DFLD_REGION=${DFLD_REGION}
+      - DFLD_STATION=${DFLD_STATION}
+      - DFLD_CKSUM=${DFLD_CKSUM}
+      - DFLD_LEGACY=${DFLD_LEGACY}
+      - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - TZ=${TZ}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=mqtt2liveview
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Push the data home
+      - homepage.showStats=true
+    networks:
+      - network
+{% endif %}
+
+  mqtt2tsdb:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: mqtt2tsdb
+    entrypoint: python /dfld/mqtt2tsdb.py
+    environment:
+      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=/dfld/sensors/#
+      - TZ=${TZ}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=mqtt2tsdb
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Push the data home
+      - homepage.showStats=true
+    networks:
+      - network
+
+networks:
+    network:
+        name: dfld_network
+        external: true

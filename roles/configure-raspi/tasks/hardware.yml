@@ -10,7 +10,7 @@
   # notify: Restart udev
 
 - name: Apply udev rules
-  ansible.builtin.command: udevadm control --reload-rules 
+  ansible.builtin.command: udevadm control --reload-rules
   changed_when: false
 
 - name: Enable i2c_dev kernel module

@@ -228,8 +228,8 @@ class DNMSDataSource(DataSource, abc.ABC):
         self.source = "dnms_serial"        
         config = os.environ
         self.device = config.get('DNMS_DEVICE', '/dev/ttyDNMS')
-        self.loggdier.debug(f"DNMS DataSource config: device={self.device}")
-        self.baudrate = config.get('DNMS_BAUDRATE', )
+        self.logger.debug(f"DNMS DataSource config: device={self.device}")
+        self.baudrate = int(config.get('DNMS_BAUDRATE', '9600'))
         self.ser = None
         self.connected = False
 
