@@ -51,12 +51,17 @@ if [[ "$HOST" == "localhost" ]]; then
 else
   HOST_ARG="-i $HOST,"
 fi
+echo "Installing in $MODE mode on host: $HOST"
+
+# check if role "geerlingguy.docker" is installed
+if ! ansible-galaxy list --roles-path roles 2> /dev/null | grep -q 'geerlingguy.docker'; then
+  echo "Installing Ansible roles from Ansible Galaxy..."
+  ansible-galaxy install -p roles -r requirements.yml
+fi  
 
 if [[ "$MODE" == "mini" ]]; then
-  echo "Installing in mini mode on host: $HOST"
   ansible-playbook ./mini.yml $HOST_ARG -i inventory.yml
 elif [[ "$MODE" == "full" ]]; then
-  echo "Installing in full mode on host: $HOST"
   ansible-playbook ./full.yml $HOST_ARG -i inventory.yml
 else
   echo "Error: unknown mode '$MODE'" >&2; exit 1
