@@ -137,33 +137,28 @@ def main():
         logger.info("Starting BME280 sensor...")
         threads.append(start_sensor_thread(Bme280DataSource, use_custom_loop=True))
     
-    # Start DNMS I2C if available
     if hw_config.get('DNMS_I2C_AVAILABLE'):
+        # Start DNMS I2C if available
         logger.info("Starting DNMS I2C sensor...")
         threads.append(start_sensor_thread(DNMSi2cDataSource))
-    
-    # Start DFLD/AK-Modul (legacy) if available
-    if hw_config.get('DFLD_LEGACY_AVAILABLE'):
-        logger.info("Starting DFLD Legacy (AK-Modul) sensor...")
-        # Set environment variable for device path
-        os.environ['AK_MODUL_DEVICE'] = hw_config.get('DEVICE_DFLD', '/dev/ttyUSB0')
-        threads.append(start_sensor_thread(AkModulDataSource))
-    
-    # Start DNMS serial if available
-    if hw_config.get('DFLD_DNMS_AVAILABLE'):
+    elif hw_config.get('DFLD_DNMS_AVAILABLE'):
+        # Start DNMS serial if available
         logger.info("Starting DNMS serial sensor...")
         # Set environment variable for device path
         os.environ['DNMS_DEVICE'] = hw_config.get('DEVICE_DNMS', '/dev/ttyDNMS')
         threads.append(start_sensor_thread(DNMSDataSource))
+    elif hw_config.get('DFLD_LEGACY_AVAILABLE'):
+        # Start DFLD/AK-Modul (legacy) if available
+        logger.info("Starting DFLD Legacy (AK-Modul) sensor...")
+        # Set environment variable for device path
+        os.environ['AK_MODUL_DEVICE'] = hw_config.get('DEVICE_DFLD', '/dev/ttyUSB0')
+        threads.append(start_sensor_thread(AkModulDataSource))
+    else:    
+        # Start UDP listener, if no local device available (for external data sources)
+        logger.info("Starting UDP listener...")
+        threads.append(start_sensor_thread(UdpDataSource, use_custom_loop=True))
     
-    # Always start UDP listener (for external data sources)
-    logger.info("Starting UDP listener...")
-    threads.append(start_sensor_thread(UdpDataSource, use_custom_loop=True))
-    
-    if not threads:
-        logger.warning("No sensors detected! Only UDP listener is active.")
-    else:
-        logger.info(f"Started {len(threads)} sensor threads")
+    logger.info(f"Started {len(threads)} sensor threads")
     
     # Keep main thread alive
     try:
