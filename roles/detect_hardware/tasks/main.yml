@@ -21,3 +21,14 @@
           DFLD_LEGACY_AVAILABLE: 0
           DNMS_I2C_AVAILABLE: 0
           ADSB_AVAILABLE: 0
+
+- name: Include station configuration
+  ansible.builtin.include_vars:
+    file: /boot/dfld.yml
+    name: dfld_config
+
+- name: Flatten dfld_config into top-level facts
+  ansible.builtin.set_fact:
+    "{{ item.key }}": "{{ item.value }}"
+  loop: "{{ dfld_config | dict2items }}"
+

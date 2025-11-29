@@ -3,11 +3,11 @@
 Ansible Playbook zum Aufsetzen einer [DFLD](https://www.dfld.de/) Messstation ZWO auf einem Raspberry Pi.
 
 ## Voraussetzungen
-- Ein Raspberry Pi mit 2GB RAM oder mehr
-- Ein Schallpegelsensor, entweder AK-Modul Bus oder DNMS, der über USB mit 1Hz dBA-gewichtete Schallpegeldaten liefert
-- Ein ADS-B Empfänger, der die Flugzeugdaten über USB bereitstellt
+- Ein Raspberry Pi mit 2GB RAM oder mehr für die den Modus "full"
+- Ein Raspberry Pi Zero 2 für den Modus "mini" 
+- Ein Schallpegelsensor aus dem DNMS Projekt (Anbindung über i2c) oder das AK-Modulbus Mikrofon (Anbindung über USB)
+- Ein ADS-B Empfänger, der die Flugzeugdaten über USB bereitstellt (nur im Modus "full")
 - BME280 Sensor (optional)
-- ...
 
 ## Installation
 
@@ -21,7 +21,25 @@ Ansible Playbook zum Aufsetzen einer [DFLD](https://www.dfld.de/) Messstation ZW
 - In der inventory.yml können/müssen vor Ausführung noch die Passwörter für die Admin-Accounts von Portainer, Grafana und der InfluxDB gesetzt werden. Die Passwörter sind freiwählbar, werden während der Installation gesetzt. Nach der Installation 
 - .gitignore ist so konfiguriert, das weder ansible.cfg noch inventory.yml nach git pupliziert werden können.
 - Starten des Playbooks mit dem Befehl: `./install_messstation.sh` 
+- Die stationsspezifischen Parameter werden unter /boot/dfld.yml abgelegt. Beispiel: 
 
+```yaml
+# /boot/dfld.yml
+# aus Mail vom DFLD:
+dfld_region: "xxx"
+dfld_station: "yyy"
+dfld_cksum: "zzzz" # dezimal
+dfld_liveview: ""  
+dfld_legacy: ""    
+
+# Beispiel für Geokodierung:
+station_lon: "8.25"
+station_lat: "50.0"
+station_alt: "110.0"
+station_city: "Mainz"
+```
+
+Vorgehen für die lokale Installation mit Mode "mini" (default):
 
 ```bash
 # Ansible Controller System auf den aktuellen Patchstand bringen
@@ -39,6 +57,7 @@ cd messstation_zwo
 # Anpassungen an Konfiguration vornehmen
 cp inventory.yml.example inventory.yml
 
+emacs/vim/nano /boot/dfld.yml
 emacs/vim/nano inventory.yml
 emacs/vim/nano ansible.cfg
 
