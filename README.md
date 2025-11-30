@@ -75,9 +75,9 @@ Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentat
 Nach der Installation wird ein systemd-Service (`dfld-boot`) eingerichtet, der bei jedem Systemstart:
 
 1. Die Basis-Konfiguration aus `/opt/dfld/config/base_config.yml` lädt
-2. Prüft, ob `/boot/dfld.yml` seit dem letzten Start geändert wurde (Timestamp-Vergleich)
+2. Prüft, ob `/boot/dfld.yml` neuer ist als die Docker Compose Dateien
 3. Hardware-Erkennung durchführt (I2C-Sensoren, USB-Geräte)
-4. Bei Änderungen die Docker Compose Dateien aktualisiert
+4. Bei Bedarf die Docker Compose Dateien neu generiert
 5. Alle Container startet
 
 ### Konfigurationsänderungen zur Laufzeit

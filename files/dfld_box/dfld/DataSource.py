@@ -124,31 +124,49 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
             # request data
             self.bus.write_byte_data(self.i2c_addr, 0x00, 0x03)
 
-            # wait until available
+            # wait until available with timeout
             ready = 0
+            timeout_counter = 0
+            max_timeout = 200  # 200 * 0.005s = 1s timeout
             while not ready:
                 time.sleep(0.005)
+                timeout_counter += 1
+                if timeout_counter > max_timeout:
+                    self.logger.warning("Timeout waiting for DNMS i2c data")
+                    return {}
                 write = smbus.i2c_msg.write(self.i2c_addr, [0x00, 0x04])
                 read = smbus.i2c_msg.read(self.i2c_addr, 2)
                 self.bus.i2c_rdwr(write, read)
-                ready = list(read)[1]
+                read_list = list(read)
+                if len(read_list) < 2:
+                    self.logger.warning(f"Incomplete ready status response: {read_list}")
+                    continue
+                ready = read_list[1]
 
             # readout
             write = smbus.i2c_msg.write(self.i2c_addr, [0x00, 0x05])
             read = smbus.i2c_msg.read(self.i2c_addr, 64)
             self.bus.i2c_rdwr(write, read)
-            data = self.floats_from_bytes(list(read))
+            raw_data = list(read)
+            self.logger.debug(f"Raw I2C data received: {raw_data[:20]}...")  # Log first 20 bytes
+            
+            float_data = self.floats_from_bytes(raw_data)
+            
+            # Check if we have enough data
+            if len(float_data) < 3:
+                self.logger.warning(f"Insufficient data from DNMS i2c sensor: got {len(float_data)} floats, expected 3. Raw: {raw_data[:20]}")
+                return {}
 
             ts = int(time.time() * 1e9)
-            data = {
+            result = {
                 # round to 2 decimal places
-                "dB_A_avg": round(data[0], 2),
-                "dB_A_min": round(data[1], 2),
-                "dB_A_max": round(data[2], 2),
+                "dB_A_avg": round(float_data[0], 2),
+                "dB_A_min": round(float_data[1], 2),
+                "dB_A_max": round(float_data[2], 2),
                 "ts": ts
             }
-            logging.debug(f"Read data from DNMS i2c: {data}")
-            return data
+            self.logger.debug(f"Read data from DNMS i2c: {result}")
+            return result
         except Exception as e:
             self.logger.error(f"Failed to read from DNMS i2c sensor: {e}")
             self.connected = False

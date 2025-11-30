@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 
-# read BME280 sensor data and send to MQTT broker
+# read DNMS sensor data via i2c and send to MQTT broker
 
 import os
 import json

@@ -41,31 +41,39 @@
     - name: Check if /boot/dfld.yml exists
       ansible.builtin.stat:
         path: /boot/dfld.yml
-      register: dfld_yml_current
+      register: dfld_yml_stat
 
-    - name: Read stored timestamp
-      ansible.builtin.slurp:
-        src: "{{ dfld_dir }}/config/.dfld_yml_timestamp"
-      register: stored_timestamp_file
-      ignore_errors: yes
+    - name: Check infrastructure docker-compose.yml
+      ansible.builtin.stat:
+        path: "{{ dfld_dir }}/infrastructure/docker-compose.yml"
+      register: infra_compose_stat
 
-    - name: Set stored timestamp fact
+    - name: Check ingress docker-compose.yml
+      ansible.builtin.stat:
+        path: "{{ dfld_dir }}/ingress/docker-compose.yml"
+      register: ingress_compose_stat
+
+    - name: Determine if configuration update is needed
       ansible.builtin.set_fact:
-        stored_timestamp: "{{ (stored_timestamp_file.content | b64decode | trim) if stored_timestamp_file is succeeded else '0' }}"
-
-    - name: Check if configuration has changed
-      ansible.builtin.set_fact:
-        config_changed: "{{ dfld_yml_current.stat.mtime | string != stored_timestamp }}"
-      when: dfld_yml_current.stat.exists
+        config_changed: >-
+          {{
+            dfld_yml_stat.stat.exists and (
+              not infra_compose_stat.stat.exists or
+              not ingress_compose_stat.stat.exists or
+              dfld_yml_stat.stat.mtime > infra_compose_stat.stat.mtime or
+              dfld_yml_stat.stat.mtime > ingress_compose_stat.stat.mtime
+            )
+          }}
 
     - name: Display configuration status
       ansible.builtin.debug:
         msg: >-
           Configuration status: 
-          dfld.yml exists={{ dfld_yml_current.stat.exists }}, 
+          dfld.yml exists={{ dfld_yml_stat.stat.exists }}, 
           config_changed={{ config_changed }},
-          current_mtime={{ dfld_yml_current.stat.mtime | default('N/A') }},
-          stored_mtime={{ stored_timestamp }}
+          dfld.yml mtime={{ dfld_yml_stat.stat.mtime | default('N/A') }},
+          infra compose mtime={{ infra_compose_stat.stat.mtime | default('N/A') }},
+          ingress compose mtime={{ ingress_compose_stat.stat.mtime | default('N/A') }}
 
   tasks:
     - name: Detect hardware and load station config
@@ -98,13 +106,13 @@
       ansible.builtin.include_vars:
         file: /boot/dfld.yml
         name: dfld_config
-      when: dfld_yml_current.stat.exists
+      when: dfld_yml_stat.stat.exists
 
     - name: Flatten dfld_config into top-level facts
       ansible.builtin.set_fact:
         "{{ item.key }}": "{{ item.value }}"
       loop: "{{ dfld_config | dict2items }}"
-      when: dfld_yml_current.stat.exists and dfld_config is defined
+      when: dfld_yml_stat.stat.exists and dfld_config is defined
 
     - name: Update infrastructure configuration if changed
       when: config_changed | bool
@@ -145,14 +153,6 @@
           ansible.builtin.copy:
             content: "{{ ingress_compose_yaml | to_nice_yaml }}"
             dest: "{{ dfld_dir }}/ingress/docker-compose.yml"
-            owner: "{{ dfld_user_info.uid }}"
-            group: "{{ dfld_user_info.group }}"
-            mode: '0644'
-
-        - name: Update stored timestamp
-          ansible.builtin.copy:
-            content: "{{ dfld_yml_current.stat.mtime }}"
-            dest: "{{ dfld_dir }}/config/.dfld_yml_timestamp"
             owner: "{{ dfld_user_info.uid }}"
             group: "{{ dfld_user_info.group }}"
             mode: '0644'

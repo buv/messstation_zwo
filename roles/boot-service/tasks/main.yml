@@ -25,19 +25,6 @@
     group: "{{ dfld_user_info.group }}"
     mode: '0600'
 
-- name: Save current timestamp of /boot/dfld.yml
-  ansible.builtin.stat:
-    path: /boot/dfld.yml
-  register: dfld_yml_stat
-
-- name: Store dfld.yml timestamp
-  ansible.builtin.copy:
-    content: "{{ dfld_yml_stat.stat.mtime | default(0) }}"
-    dest: "{{ dfld_dir }}/config/.dfld_yml_timestamp"
-    owner: "{{ dfld_user_info.uid }}"
-    group: "{{ dfld_user_info.group }}"
-    mode: '0644'
-
 - name: Copy boot playbook to target
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/boot.yml"
