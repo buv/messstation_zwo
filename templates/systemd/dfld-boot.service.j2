@@ -1,0 +1,17 @@
+[Unit]
+Description=DFLD Messstation Boot Service
+Documentation=https://github.com/buv/messstation_zwo
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory={{ dfld_dir }}
+ExecStart=/usr/bin/ansible-playbook -i localhost, -c local {{ dfld_dir }}/boot.yml
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

@@ -7,7 +7,7 @@ services:
     # image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf
     container_name: ultrafeeder
     hostname: ultrafeeder
-    restart: unless-stopped
+    restart: on-failure
     device_cgroup_rules:
       - "c 189:* rwm"
     networks:
@@ -72,7 +72,7 @@ services:
 
   influxdb:
     image: influxdb:1.11.8-alpine
-    restart: unless-stopped
+    restart: on-failure
     container_name: influxdb
     networks:
       - network
@@ -105,7 +105,7 @@ services:
       - ${DOCKER_EXTERNAL_ROOT}/mqtt/config:/mosquitto/config:rw
       - mqtt-data:/mosquitto/data:rw
       - mqtt-log:/mosquitto/log:rw
-    restart: unless-stopped
+    restart: on-failure
     labels:
       - homepage.group=Infrastructure
       - homepage.name=Eclipse Mosquitto

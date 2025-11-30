@@ -69,3 +69,44 @@ emacs/vim/nano ansible.cfg
 ```
 
 Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentation](https://docs.ansible.com/ansible/latest/index.html).
+
+## Automatischer Boot-Service
+
+Nach der Installation wird ein systemd-Service (`dfld-boot`) eingerichtet, der bei jedem Systemstart:
+
+1. Die Basis-Konfiguration aus `/opt/dfld/config/base_config.yml` lädt
+2. Prüft, ob `/boot/dfld.yml` seit dem letzten Start geändert wurde (Timestamp-Vergleich)
+3. Hardware-Erkennung durchführt (I2C-Sensoren, USB-Geräte)
+4. Bei Änderungen die Docker Compose Dateien aktualisiert
+5. Alle Container startet
+
+### Konfigurationsänderungen zur Laufzeit
+
+Um stationsspezifische Parameter zu ändern:
+
+1. Datei `/boot/dfld.yml` bearbeiten
+2. System neu starten oder den Boot-Service manuell ausführen:
+
+```bash
+sudo systemctl restart dfld-boot
+```
+
+### Service-Status prüfen
+
+```bash
+# Status des Boot-Services
+sudo systemctl status dfld-boot
+
+# Logs des Boot-Services
+sudo journalctl -u dfld-boot
+
+# Manueller Start des Boot-Playbooks
+sudo ansible-playbook -i localhost, -c local /opt/dfld/boot.yml
+```
+
+### Restart-Policy der Container
+
+Die Container verwenden die Restart-Policy `on-failure`, d.h.:
+- Bei Abstürzen werden Container automatisch neu gestartet
+- Beim Systemstart werden Container **nicht** automatisch gestartet (dies übernimmt der dfld-boot Service)
+- Dies ermöglicht eine kontrollierte Aktualisierung der Konfiguration vor dem Start

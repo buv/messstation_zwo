@@ -2,7 +2,7 @@ services:
 {% if hw_conf["DFLD_DNMS_AVAILABLE"]==1 %}
   dnms2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: dnms2mqtt
     entrypoint: python /dfld/dnms2mqtt.py
     environment:
@@ -30,7 +30,7 @@ services:
 {% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
   dfld2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: dfld2mqtt
     entrypoint: python /dfld/dfld2mqtt.py
     environment:
@@ -55,7 +55,7 @@ services:
 {% if hw_conf["DNMS_I2C_AVAILABLE"]==1 %}
   dnmsiic2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: dnmsiic2mqtt
     entrypoint: python /dfld/dnmsiic2mqtt.py
     environment:
@@ -79,7 +79,7 @@ services:
 {% if hw_conf["BME280_AVAILABLE"]==1 %}
   bme2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: bme2mqtt
     entrypoint: python /dfld/bme2mqtt.py
     environment:
@@ -102,7 +102,7 @@ services:
 {% if hw_conf["ADSB_AVAILABLE"]==1 %}
   detect_flyover:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: detect_flyover
     entrypoint: python /dfld/detect_flyover.py
     environment:
@@ -126,7 +126,7 @@ services:
 {% if dfld_legacy | length != 0 %}
   tsdb2ftp:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: tsdb2ftp
     entrypoint: python /dfld/tsdb2ftp.py
     environment:
@@ -152,7 +152,7 @@ services:
 
   mqtt2liveview:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: mqtt2liveview
     entrypoint: python /dfld/mqtt2liveview.py
     environment:
@@ -178,7 +178,7 @@ services:
 {% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0  and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
   udp2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: udp2mqtt
     entrypoint: python /dfld/udp2mqtt.py
     environment:
@@ -201,7 +201,7 @@ services:
 
   mqtt2tsdb:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: mqtt2tsdb
     entrypoint: python /dfld/mqtt2tsdb.py
     environment:

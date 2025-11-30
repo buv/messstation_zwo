@@ -16,6 +16,7 @@
     - role: detect_hardware
     - role: deploy_infrastructure_core
     - role: deploy_ingress_core
+    - role: boot-service
 
 
   post_tasks:

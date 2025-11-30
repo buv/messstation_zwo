@@ -40,5 +40,11 @@
   environment:
     COMPOSE_FILE: "{{ dfld_dir }}/infrastructure/docker-compose.yml"
     COMPOSE_PROJECT_NAME: "infrastructure"
-  args:
-    creates: "{{ dfld_dir }}/infrastructure/.stack_initialized"
+
+- name: Mark infrastructure stack as initialized
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/infrastructure/.stack_initialized"
+    state: touch
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'

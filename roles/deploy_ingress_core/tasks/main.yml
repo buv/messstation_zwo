@@ -35,6 +35,11 @@
   environment:
     COMPOSE_FILE: "{{ dfld_dir }}/ingress/docker-compose.yml"
     COMPOSE_PROJECT_NAME: "ingress"
-  args:
-    creates: "{{ dfld_dir }}/ingress/.stack_initialized"
 
+- name: Mark ingress stack as initialized
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/ingress/.stack_initialized"
+    state: touch
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'

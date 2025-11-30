@@ -1,0 +1,201 @@
+#!/usr/bin/env ansible-playbook
+---
+# Boot Playbook für DFLD Messstation ZWO
+# Wird beim Systemstart vom systemd-Service dfld-boot ausgeführt
+# 
+# Dieses Playbook:
+# 1. Lädt die gespeicherten Basis-Konfiguration
+# 2. Prüft ob /boot/dfld.yml geändert wurde
+# 3. Führt Hardware-Erkennung durch
+# 4. Aktualisiert Docker Compose Dateien falls nötig
+# 5. Startet die Container
+
+- name: DFLD Messstation Boot
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: true
+
+  vars:
+    dfld_dir: /opt/dfld
+    config_changed: false
+    playbook_dir: /opt/dfld
+
+  pre_tasks:
+    - name: Load base configuration from installation
+      ansible.builtin.include_vars:
+        file: "{{ dfld_dir }}/config/base_config.yml"
+
+    - name: Get dfld_user info
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ dfld_user }}"
+      register: dfld_user_getent
+
+    - name: Set dfld_user_info fact
+      ansible.builtin.set_fact:
+        dfld_user_info:
+          uid: "{{ dfld_user_getent.ansible_facts.getent_passwd[dfld_user][1] }}"
+          group: "{{ dfld_user_getent.ansible_facts.getent_passwd[dfld_user][2] }}"
+
+    - name: Check if /boot/dfld.yml exists
+      ansible.builtin.stat:
+        path: /boot/dfld.yml
+      register: dfld_yml_current
+
+    - name: Read stored timestamp
+      ansible.builtin.slurp:
+        src: "{{ dfld_dir }}/config/.dfld_yml_timestamp"
+      register: stored_timestamp_file
+      ignore_errors: yes
+
+    - name: Set stored timestamp fact
+      ansible.builtin.set_fact:
+        stored_timestamp: "{{ (stored_timestamp_file.content | b64decode | trim) if stored_timestamp_file is succeeded else '0' }}"
+
+    - name: Check if configuration has changed
+      ansible.builtin.set_fact:
+        config_changed: "{{ dfld_yml_current.stat.mtime | string != stored_timestamp }}"
+      when: dfld_yml_current.stat.exists
+
+    - name: Display configuration status
+      ansible.builtin.debug:
+        msg: >-
+          Configuration status: 
+          dfld.yml exists={{ dfld_yml_current.stat.exists }}, 
+          config_changed={{ config_changed }},
+          current_mtime={{ dfld_yml_current.stat.mtime | default('N/A') }},
+          stored_mtime={{ stored_timestamp }}
+
+  tasks:
+    - name: Detect hardware and load station config
+      block:
+        - name: Run hardware detection in docker container
+          ansible.builtin.command: docker run --rm --privileged -v /dev:/dev:ro dfld_box python detect_hw.py
+          register: detect_hw_response
+          changed_when: false
+
+        - name: Extract hardware config to json fact
+          ansible.builtin.set_fact:
+            hw_conf: "{{ detect_hw_response.stdout | from_json }}"
+
+      rescue:
+        - name: Set default hardware config on failure
+          ansible.builtin.set_fact:
+            hw_conf:
+              BME280_AVAILABLE: 0
+              DFLD_DNMS_AVAILABLE: 0
+              DFLD_LEGACY_AVAILABLE: 0
+              DNMS_I2C_AVAILABLE: 0
+              ADSB_AVAILABLE: 0
+
+        - name: Mark detection as failed
+          ansible.builtin.set_fact:
+            detect_hw_response:
+              failed: true
+
+    - name: Include station configuration from /boot/dfld.yml
+      ansible.builtin.include_vars:
+        file: /boot/dfld.yml
+        name: dfld_config
+      when: dfld_yml_current.stat.exists
+
+    - name: Flatten dfld_config into top-level facts
+      ansible.builtin.set_fact:
+        "{{ item.key }}": "{{ item.value }}"
+      loop: "{{ dfld_config | dict2items }}"
+      when: dfld_yml_current.stat.exists and dfld_config is defined
+
+    - name: Update infrastructure configuration if changed
+      when: config_changed | bool
+      block:
+        - name: Update infrastructure compose.env
+          ansible.builtin.copy:
+            content: "{{ lookup('template', dfld_dir ~ '/templates/container/compose.env.j2') }}"
+            dest: "{{ dfld_dir }}/infrastructure/compose.env"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Read infrastructure yml compose file
+          ansible.builtin.set_fact:
+            infra_compose_yaml: "{{ lookup('template', dfld_dir ~ '/templates/container/infrastructure-core-compose.yml.j2') | from_yaml }}"
+
+        - name: Write docker compose file for core infrastructure
+          ansible.builtin.copy:
+            content: "{{ infra_compose_yaml | to_nice_yaml }}"
+            dest: "{{ dfld_dir }}/infrastructure/docker-compose.yml"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Update ingress compose.env
+          ansible.builtin.copy:
+            content: "{{ lookup('template', dfld_dir ~ '/templates/container/compose.env.j2') }}"
+            dest: "{{ dfld_dir }}/ingress/compose.env"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Read ingress yml compose file
+          ansible.builtin.set_fact:
+            ingress_compose_yaml: "{{ lookup('template', dfld_dir ~ '/templates/container/ingress-compose.yml.j2') | from_yaml }}"
+
+        - name: Write docker compose file for ingress
+          ansible.builtin.copy:
+            content: "{{ ingress_compose_yaml | to_nice_yaml }}"
+            dest: "{{ dfld_dir }}/ingress/docker-compose.yml"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Update stored timestamp
+          ansible.builtin.copy:
+            content: "{{ dfld_yml_current.stat.mtime }}"
+            dest: "{{ dfld_dir }}/config/.dfld_yml_timestamp"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Log configuration update
+          ansible.builtin.debug:
+            msg: "Configuration updated from /boot/dfld.yml"
+
+    - name: Start infrastructure stack
+      ansible.builtin.command:
+        cmd: docker compose --env-file compose.env up -d
+        chdir: "{{ dfld_dir }}/infrastructure"
+      environment:
+        COMPOSE_FILE: "{{ dfld_dir }}/infrastructure/docker-compose.yml"
+        COMPOSE_PROJECT_NAME: "infrastructure"
+
+    - name: Wait for infrastructure to be ready
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Start ingress stack
+      ansible.builtin.command:
+        cmd: docker compose --env-file compose.env up -d
+        chdir: "{{ dfld_dir }}/ingress"
+      environment:
+        COMPOSE_FILE: "{{ dfld_dir }}/ingress/docker-compose.yml"
+        COMPOSE_PROJECT_NAME: "ingress"
+
+  post_tasks:
+    - name: Boot completed message
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - 'DFLD Messstation ZWO Boot completed.'
+          - ''
+          - 'Configuration changed: {{ config_changed }}'
+          - ''
+          - 'Hardware status:'
+          - '  ADS-B Receiver:  {{ (hw_conf.ADSB_AVAILABLE == 1) | ternary("detected", "not found") }}'
+          - '  DFLD DNMS:       {{ (hw_conf.DFLD_DNMS_AVAILABLE == 1) | ternary("detected", "not found") }}'
+          - '  DFLD Legacy:     {{ (hw_conf.DFLD_LEGACY_AVAILABLE == 1) | ternary("detected", "not found") }}'
+          - '  DNMS I2C:        {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("detected", "not found") }}'
+          - '  BME280:          {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("detected", "not found") }}'
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
