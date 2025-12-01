@@ -5,6 +5,9 @@
   gather_facts: true
   become: true
 
+  vars:
+    deployment_mode: full
+
   roles:
     - role: configure-raspi
     - role: geerlingguy.docker
@@ -19,6 +22,7 @@
     - role: configure-postgres
     - role: configure-grafana
     - role: deploy_ingress_stack
+    - role: boot-service
 
 
   post_tasks:

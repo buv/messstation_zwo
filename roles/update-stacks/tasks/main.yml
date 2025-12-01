@@ -1,0 +1,141 @@
+---
+# Role: update-stacks
+# Updates Docker Compose stacks either directly or via Portainer API
+
+- name: Determine deployment mode from config
+  ansible.builtin.set_fact:
+    deployment_mode: "{{ deployment_mode | default('mini') }}"
+
+- name: Update stacks in mini mode (direct Docker Compose)
+  when: deployment_mode == 'mini'
+  block:
+    - name: Update infrastructure configuration
+      block:
+        - name: Update infrastructure compose.env
+          ansible.builtin.copy:
+            content: "{{ lookup('template', playbook_dir ~ '/templates/container/compose.env.j2') }}"
+            dest: "{{ dfld_dir }}/infrastructure/compose.env"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Read infrastructure yml compose file
+          ansible.builtin.set_fact:
+            infra_compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/infrastructure-core-compose.yml.j2') | from_yaml }}"
+
+        - name: Write docker compose file for core infrastructure
+          ansible.builtin.copy:
+            content: "{{ infra_compose_yaml | to_nice_yaml }}"
+            dest: "{{ dfld_dir }}/infrastructure/docker-compose.yml"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+    - name: Update ingress configuration
+      block:
+        - name: Update ingress compose.env
+          ansible.builtin.copy:
+            content: "{{ lookup('template', playbook_dir ~ '/templates/container/compose.env.j2') }}"
+            dest: "{{ dfld_dir }}/ingress/compose.env"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+        - name: Read ingress yml compose file
+          ansible.builtin.set_fact:
+            ingress_compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/ingress-compose.yml.j2') | from_yaml }}"
+
+        - name: Write docker compose file for ingress
+          ansible.builtin.copy:
+            content: "{{ ingress_compose_yaml | to_nice_yaml }}"
+            dest: "{{ dfld_dir }}/ingress/docker-compose.yml"
+            owner: "{{ dfld_user_info.uid }}"
+            group: "{{ dfld_user_info.group }}"
+            mode: '0644'
+
+- name: Update stacks in full mode (via Portainer API)
+  when: deployment_mode == 'full'
+  block:
+    - name: Get Portainer Auth token
+      ansible.builtin.uri:
+        url: "https://localhost:9443/api/auth"
+        method: POST
+        body_format: json
+        validate_certs: false
+        headers:
+          Content-Type: "application/json"
+        body: '{"Username": "{{ portainer_username }}", "Password": "{{ portainer_password }}"}'
+        status_code: 200
+      register: portainer_auth
+
+    - name: Get list of stacks
+      ansible.builtin.uri:
+        url: "https://localhost:9443/api/stacks"
+        method: GET
+        validate_certs: false
+        headers:
+          Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+        status_code:
+          - 200
+          - 204
+      register: portainer_stacks
+
+    - name: Find infrastructure stack
+      ansible.builtin.set_fact:
+        infrastructure_stack: "{{ portainer_stacks.json | selectattr('Name', 'equalto', 'infrastructure') | first }}"
+      when: "'infrastructure' in portainer_stacks.json|map(attribute='Name')"
+
+    - name: Find ingress stack
+      ansible.builtin.set_fact:
+        ingress_stack: "{{ portainer_stacks.json | selectattr('Name', 'equalto', 'ingress') | first }}"
+      when: "'ingress' in portainer_stacks.json|map(attribute='Name')"
+
+    - name: Prepare compose env
+      ansible.builtin.set_fact:
+        compose_env: "{{ dict(lookup('template', playbook_dir ~ '/templates/container/compose.env.j2').split() | map('split', '=', 1)) }}"
+
+    - name: Update infrastructure stack via Portainer API
+      when: infrastructure_stack is defined
+      block:
+        - name: Read infrastructure compose file
+          ansible.builtin.set_fact:
+            infrastructure_compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/infrastructure-compose.yml.j2') | from_yaml }}"
+
+        - name: Update infrastructure stack
+          ansible.builtin.uri:
+            url: "https://localhost:9443/api/stacks/{{ infrastructure_stack.Id }}?endpointId={{ infrastructure_stack.EndpointId }}"
+            method: PUT
+            body_format: json
+            validate_certs: false
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+            body: >-
+              { "env": {{ compose_env | dict2items(key_name="name", value_name="value") | to_json }},
+                "stackFileContent": {{ infrastructure_compose_yaml | to_nice_yaml | to_json }},
+                "prune": false }
+            timeout: 300
+            status_code: 200
+
+    - name: Update ingress stack via Portainer API
+      when: ingress_stack is defined
+      block:
+        - name: Read ingress compose file
+          ansible.builtin.set_fact:
+            ingress_compose_yaml: "{{ lookup('template', playbook_dir ~ '/templates/container/ingress-compose.yml.j2') | from_yaml }}"
+
+        - name: Update ingress stack
+          ansible.builtin.uri:
+            url: "https://localhost:9443/api/stacks/{{ ingress_stack.Id }}?endpointId={{ ingress_stack.EndpointId }}"
+            method: PUT
+            body_format: json
+            validate_certs: false
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ portainer_auth.json.jwt }}"
+            body: >-
+              { "env": {{ compose_env | dict2items(key_name="name", value_name="value") | to_json }},
+                "stackFileContent": {{ ingress_compose_yaml | to_nice_yaml | to_json }},
+                "prune": false }
+            timeout: 300
+            status_code: 200

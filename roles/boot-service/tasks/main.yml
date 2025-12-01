@@ -10,6 +10,13 @@
     state: directory
     mode: '0755'
 
+- name: Validate deployment mode
+  ansible.builtin.assert:
+    that:
+      - deployment_mode is defined
+      - deployment_mode in ['mini', 'full']
+    fail_msg: "deployment_mode must be set to 'mini' or 'full' in the playbook"
+
 - name: Save all installation variables to base config
   ansible.builtin.copy:
     content: |

@@ -61,11 +61,16 @@ emacs/vim/nano /boot/dfld.yml
 emacs/vim/nano inventory.yml
 emacs/vim/nano ansible.cfg
 
-# Playbook lokal starten und Messstation ZWO installieren.
+# Playbook lokal starten und Messstation ZWO installieren
+# Mini-Modus (default):
 ./install_messstation.sh
 
-# alternativ Playbook remote ausführen.
-./install_messstation.sh <IP Adresse Remote Raspi>
+# Full-Modus (mit Portainer):
+./install_messstation.sh --mode full
+
+# Remote-Installation:
+./install_messstation.sh --mode mini <IP Adresse Remote Raspi>
+./install_messstation.sh --mode full <IP Adresse Remote Raspi>
 ```
 
 Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentation](https://docs.ansible.com/ansible/latest/index.html).
@@ -75,10 +80,13 @@ Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentat
 Nach der Installation wird ein systemd-Service (`dfld-boot`) eingerichtet, der bei jedem Systemstart:
 
 1. Die Basis-Konfiguration aus `/opt/dfld/config/base_config.yml` lädt
-2. Prüft, ob `/boot/dfld.yml` neuer ist als die Docker Compose Dateien
-3. Hardware-Erkennung durchführt (I2C-Sensoren, USB-Geräte)
-4. Bei Bedarf die Docker Compose Dateien neu generiert
-5. Alle Container startet
+2. Erkennt den Deployment-Modus (mini oder full)
+3. Prüft, ob `/boot/dfld.yml` neuer ist als die Docker Compose Dateien
+4. Führt Hardware-Erkennung durch (I2C-Sensoren, USB-Geräte)
+5. Bei Bedarf werden die Stacks aktualisiert:
+   - **mini-Modus**: Docker Compose Dateien werden neu generiert
+   - **full-Modus**: Stacks werden über Portainer API aktualisiert
+6. Container werden gestartet (mini) bzw. laufen bereits über Portainer (full)
 
 ### Konfigurationsänderungen zur Laufzeit
 
