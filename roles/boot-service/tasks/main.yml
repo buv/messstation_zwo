@@ -26,7 +26,7 @@
       # DO NOT EDIT - this file is managed by the installation playbook
       # Station-specific parameters should be configured in /boot/dfld.yml
       
-      {{ vars | to_nice_yaml }}
+      {{ vars | dict2items | rejectattr('key', 'match', '^(play_hosts|ansible_play_batch)$') | items2dict | to_nice_yaml }}
     dest: "{{ dfld_dir }}/config/base_config.yml"
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
