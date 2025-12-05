@@ -97,3 +97,140 @@ class MqttDataSink(DataSink, abc.ABC):
         self.connected = False
         self.logger.info("Disconnected from MQTT broker.")
         super().close()
+
+
+# SSD1306DataSink inherits from DataSink
+class SSD1306DataSink(DataSink):
+    def __init__(self):
+        super().__init__()
+        self.display = None
+        self.i2c_bus = int(self.config.get('I2C_BUS', '1'))
+        self.i2c_addr = int(self.config.get('SSD1306_I2C_ADDR', '0x3C'), 16)
+        self.width = int(self.config.get('SSD1306_WIDTH', '128'))
+        self.height = int(self.config.get('SSD1306_HEIGHT', '64'))
+        self.display_timeout = float(self.config.get('DISPLAY_TIMEOUT', '2.0'))
+        self.last_write_time = 0
+        self.logger.debug(f"SSD1306 DataSink config: i2c_bus={self.i2c_bus}, addr={hex(self.i2c_addr)}, size={self.width}x{self.height}, timeout={self.display_timeout}s")
+
+    def connect(self):
+        try:
+            from board import SCL, SDA
+            import busio
+            from PIL import Image, ImageDraw, ImageFont
+            import adafruit_ssd1306
+            
+            self.logger.info(f"Initializing SSD1306 display on I2C bus {self.i2c_bus} at address {hex(self.i2c_addr)}...")
+            
+            # Create I2C interface
+            i2c = busio.I2C(SCL, SDA)
+            
+            # Create display object
+            self.display = adafruit_ssd1306.SSD1306_I2C(self.width, self.height, i2c, addr=self.i2c_addr)
+            
+            # Clear display
+            self.display.fill(0)
+            self.display.show()
+            
+            # Store PIL modules for later use
+            self.Image = Image
+            self.ImageDraw = ImageDraw
+            self.ImageFont = ImageFont
+            
+            self.connected = True
+            self.logger.info("SSD1306 display initialized successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize SSD1306 display: {e}")
+            self.connected = False
+
+    def write(self, line: str):
+        import json
+        import time
+        
+        if not self.connected:
+            self.logger.error("Display not connected.")
+            return
+        
+        # Check if display should be cleared due to timeout
+        current_time = time.time()
+        if self.last_write_time > 0 and (current_time - self.last_write_time) > self.display_timeout:
+            self.clear()
+            self.last_write_time = 0
+            return
+        
+        try:
+            # Parse JSON data
+            data = json.loads(line)
+            if not isinstance(data, dict):
+                self.logger.warning(f"Received data is not a dict: {data}")
+                return
+            
+            # Extract dB_A_avg value
+            if "dB_A_avg" not in data:
+                self.logger.debug(f"JSON does not contain 'dB_A_avg': {data}")
+                return
+            
+            value = float(data["dB_A_avg"])
+            self.last_write_time = current_time
+            
+            # Create blank image for drawing
+            image = self.Image.new("1", (self.width, self.height))
+            draw = self.ImageDraw.Draw(image)
+            
+            # Try to load a large font, fall back to default if not available
+            try:
+                # Try to use DejaVuSans font with large size to fill display
+                font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
+            except Exception:
+                try:
+                    # Fallback to another common font
+                    font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
+                except Exception:
+                    # Use default font if no truetype fonts available
+                    font = self.ImageFont.load_default()
+            
+            # Format the text - display value with one decimal place
+            text = f"{value:.1f}\ndBA"
+            
+            # Get text bounding box to center it
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            # Calculate position to center text
+            x = (self.width - text_width) // 2
+            y = (self.height - text_height) // 2
+            
+            # Draw text
+            draw.text((x, y), text, font=font, fill=255)
+            
+            # Display image
+            self.display.image(image)
+            self.display.show()
+            
+            self.logger.debug(f"Display updated with value: {value:.1f} dBA")
+        except json.JSONDecodeError:
+            self.logger.warning(f"Failed to decode JSON from line: {line}")
+        except Exception as e:
+            self.logger.error(f"Failed to update display: {e}")
+
+    def clear(self):
+        if not self.connected:
+            return
+        
+        try:
+            self.display.fill(0)
+            self.display.show()
+            self.logger.debug("Display cleared.")
+        except Exception as e:
+            self.logger.error(f"Failed to clear display: {e}")
+
+    def close(self):
+        if self.display:
+            try:
+                self.display.fill(0)
+                self.display.show()
+            except Exception:
+                pass
+        self.connected = False
+        self.logger.info("SSD1306 display closed.")
+        super().close()
