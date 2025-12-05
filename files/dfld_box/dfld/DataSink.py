@@ -179,14 +179,19 @@ class SSD1306DataSink(DataSink):
                 # For 128x64 display and format "XXX.X", use larger font size
                 try:
                     # Try to use DejaVuSans font with large size (52pt for display-filling)
-                    font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
+                    # Alpine Linux path for ttf-dejavu package
+                    font = self.ImageFont.truetype("/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf", 52)
                 except Exception:
                     try:
-                        # Fallback to another common font
-                        font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 52)
+                        # Fallback to non-bold variant
+                        font = self.ImageFont.truetype("/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf", 52)
                     except Exception:
-                        # Use default font if no truetype fonts available
-                        font = self.ImageFont.load_default()
+                        try:
+                            # Try Debian/Ubuntu path as fallback
+                            font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
+                        except Exception:
+                            # Use default font if no truetype fonts available
+                            font = self.ImageFont.load_default()
                 
                 # Get text bounding box to center it
                 bbox = draw.textbbox((0, 0), text, font=font)
