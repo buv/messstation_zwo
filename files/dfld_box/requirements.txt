@@ -6,5 +6,4 @@ smbus3==0.5.5
 RPi.bme280==0.2.4
 psycopg2-binary==2.9.11
 uuid==1.30
-adafruit-circuitpython-ssd1306==2.12.15
-Pillow==11.0.0
+luma.oled==3.14.0

@@ -114,26 +114,24 @@ class SSD1306DataSink(DataSink):
 
     def connect(self):
         try:
-            from board import SCL, SDA
-            import busio
-            from PIL import Image, ImageDraw, ImageFont
-            import adafruit_ssd1306
+            from luma.core.interface.serial import i2c
+            from luma.oled.device import ssd1306
+            from luma.core.render import canvas
+            from PIL import ImageFont
             
             self.logger.info(f"Initializing SSD1306 display on I2C bus {self.i2c_bus} at address {hex(self.i2c_addr)}...")
             
             # Create I2C interface
-            i2c = busio.I2C(SCL, SDA)
+            serial = i2c(port=self.i2c_bus, address=self.i2c_addr)
             
             # Create display object
-            self.display = adafruit_ssd1306.SSD1306_I2C(self.width, self.height, i2c, addr=self.i2c_addr)
+            self.display = ssd1306(serial, width=self.width, height=self.height)
             
             # Clear display
-            self.display.fill(0)
-            self.display.show()
+            self.display.clear()
             
-            # Store PIL modules for later use
-            self.Image = Image
-            self.ImageDraw = ImageDraw
+            # Store modules for later use
+            self.canvas = canvas
             self.ImageFont = ImageFont
             
             self.connected = True
@@ -172,40 +170,34 @@ class SSD1306DataSink(DataSink):
             value = float(data["dB_A_avg"])
             self.last_write_time = current_time
             
-            # Create blank image for drawing
-            image = self.Image.new("1", (self.width, self.height))
-            draw = self.ImageDraw.Draw(image)
-            
-            # Try to load a large font, fall back to default if not available
-            try:
-                # Try to use DejaVuSans font with large size to fill display
-                font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
-            except Exception:
+            # Draw on display using luma canvas
+            with self.canvas(self.display) as draw:
+                # Try to load a large font, fall back to default if not available
                 try:
-                    # Fallback to another common font
-                    font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
+                    # Try to use DejaVuSans font with large size to fill display
+                    font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
                 except Exception:
-                    # Use default font if no truetype fonts available
-                    font = self.ImageFont.load_default()
-            
-            # Format the text - display value with one decimal place
-            text = f"{value:.1f}\ndBA"
-            
-            # Get text bounding box to center it
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            
-            # Calculate position to center text
-            x = (self.width - text_width) // 2
-            y = (self.height - text_height) // 2
-            
-            # Draw text
-            draw.text((x, y), text, font=font, fill=255)
-            
-            # Display image
-            self.display.image(image)
-            self.display.show()
+                    try:
+                        # Fallback to another common font
+                        font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
+                    except Exception:
+                        # Use default font if no truetype fonts available
+                        font = self.ImageFont.load_default()
+                
+                # Format the text - display value with one decimal place
+                text = f"{value:.1f}\ndBA"
+                
+                # Get text bounding box to center it
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                
+                # Calculate position to center text
+                x = (self.width - text_width) // 2
+                y = (self.height - text_height) // 2
+                
+                # Draw text
+                draw.text((x, y), text, font=font, fill="white")
             
             self.logger.debug(f"Display updated with value: {value:.1f} dBA")
         except json.JSONDecodeError:
@@ -218,8 +210,7 @@ class SSD1306DataSink(DataSink):
             return
         
         try:
-            self.display.fill(0)
-            self.display.show()
+            self.display.clear()
             self.logger.debug("Display cleared.")
         except Exception as e:
             self.logger.error(f"Failed to clear display: {e}")
@@ -227,8 +218,8 @@ class SSD1306DataSink(DataSink):
     def close(self):
         if self.display:
             try:
-                self.display.fill(0)
-                self.display.show()
+                self.display.clear()
+                self.display.cleanup()
             except Exception:
                 pass
         self.connected = False
