@@ -172,20 +172,21 @@ class SSD1306DataSink(DataSink):
             
             # Draw on display using luma canvas
             with self.canvas(self.display) as draw:
-                # Try to load a large font, fall back to default if not available
+                # Format the text - only numeric value with one decimal place
+                text = f"{value:.1f}"
+                
+                # Try to load a large font sized for 3-digit values to fill display
+                # For 128x64 display and format "XXX.X", use larger font size
                 try:
-                    # Try to use DejaVuSans font with large size to fill display
-                    font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
+                    # Try to use DejaVuSans font with large size (52pt for display-filling)
+                    font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
                 except Exception:
                     try:
                         # Fallback to another common font
-                        font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 36)
+                        font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 52)
                     except Exception:
                         # Use default font if no truetype fonts available
                         font = self.ImageFont.load_default()
-                
-                # Format the text - display value with one decimal place
-                text = f"{value:.1f}\ndBA"
                 
                 # Get text bounding box to center it
                 bbox = draw.textbbox((0, 0), text, font=font)
