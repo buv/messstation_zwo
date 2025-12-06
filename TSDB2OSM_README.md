@@ -8,9 +8,9 @@
 
 ### 1. Datenaggregation
 - Liest Daten aus InfluxDB für ein konfigurierbares Zeitintervall
-- **Delogarithmiert** die dB-Werte (logarithmisch → linear)
-- Berechnet den **Mittelwert** der linearen Werte
-- **Logarithmiert** das Ergebnis wieder (linear → logarithmisch)
+- Unterstützt zwei Aggregationsmodi:
+  - **Logarithmische Aggregation (log)**: Für dB-Werte - Delogarithmiert → Mittelwert → Logarithmiert
+  - **Lineare Aggregation (lin)**: Für normale Werte - Einfacher arithmetischer Mittelwert
 
 ### 2. HTTP POST zu openSenseMap
 - Sendet Daten im JSON-Format: `{"value": "94.0"}`
@@ -43,17 +43,31 @@
 ### Sensor-Konfigurationsformat
 
 ```
-sensor_id:db_name:measurement:column_name
+sensor_id:db_name:measurement:column_name:aggr_mode
 ```
 
-**Beispiel:**
+**Parameter:**
+- `sensor_id`: 12 Byte Hex-ID des Sensors
+- `db_name`: Name der InfluxDB-Datenbank
+- `measurement`: Name des Measurements in InfluxDB
+- `column_name`: Name der Spalte/des Felds
+- `aggr_mode`: Aggregationsmodus
+  - `log`: Logarithmische Aggregation (Delogarithmierung → Mittelwert → Logarithmierung) - für dB-Werte
+  - `lin`: Lineare Aggregation (einfacher arithmetischer Mittelwert) - für normale Werte
+
+**Beispiel (Lärm mit logarithmischer Aggregation):**
 ```
-5f8e9a1b2c3d4e5f6a7b8c9d:noise_db:spl:dB_A_avg
+5f8e9a1b2c3d4e5f6a7b8c9d:noise_db:spl:dB_A_avg:log
+```
+
+**Beispiel (Temperatur mit linearer Aggregation):**
+```
+507f191e810c19729de860eb:temperature_db:temp:temp_avg:lin
 ```
 
 **Mehrere Sensoren:**
 ```
-5f8e9a1b2c3d4e5f6a7b8c9d:noise_db:spl:dB_A_avg,507f191e810c19729de860eb:temperature_db:temp:temp_avg
+5f8e9a1b2c3d4e5f6a7b8c9d:noise_db:spl:dB_A_avg:log,507f191e810c19729de860eb:temperature_db:temp:temp_avg:lin
 ```
 
 ## Integration in Ansible/Docker
@@ -103,10 +117,10 @@ tsdb2osm:
 
 ## Verwendungsbeispiele
 
-### Beispiel 1: Einzelner Sensor
+### Beispiel 1: Einzelner Lärm-Sensor (logarithmische Aggregation)
 ```bash
 export OSM_STATION_ID="507f1f77bcf86cd799439011"
-export OSM_SENSORS="507f191e810c19729de860ea:dfld:spl:dB_A_avg"
+export OSM_SENSORS="507f191e810c19729de860ea:dfld:spl:dB_A_avg:log"
 export OSM_API_KEY="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
 export OSM_INTERVAL="300"
 export INFLUXDB_SERVER="localhost:8086"
@@ -115,9 +129,9 @@ export INFLUXDB_PASSWORD="password"
 python3 tsdb2osm.py
 ```
 
-### Beispiel 2: Mehrere Sensoren
+### Beispiel 2: Mehrere Sensoren (gemischt)
 ```bash
-export OSM_SENSORS="507f191e810c19729de860ea:noise_db:spl:dB_A_avg,507f191e810c19729de860eb:temperature_db:temp:temp_avg,507f191e810c19729de860ec:humidity_db:humidity:humidity_avg"
+export OSM_SENSORS="507f191e810c19729de860ea:noise_db:spl:dB_A_avg:log,507f191e810c19729de860eb:temperature_db:temp:temp_avg:lin,507f191e810c19729de860ec:humidity_db:humidity:humidity_avg:lin"
 ```
 
 ## curl-Beispiel für manuelle Anfragen
@@ -162,9 +176,9 @@ Das Skript verwendet strukturiertes Logging mit folgenden Informationen:
    - Für jeden konfigurierten Sensor:
      - Verbindung zur spezifischen InfluxDB-Datenbank
      - Abfrage der Daten für das Zeitintervall
-     - Delogarithmierung der Werte
-     - Berechnung des Mittelwerts
-     - Logarithmierung des Ergebnisses
+     - Aggregation je nach Modus:
+       - **log-Modus**: Delogarithmierung → Mittelwert → Logarithmierung
+       - **lin-Modus**: Einfacher arithmetischer Mittelwert
      - HTTP POST zu openSenseMap
 3. **Fehlerbehandlung**: Bei Fehlern wird der Sensor übersprungen, das Skript läuft weiter
 
@@ -197,12 +211,23 @@ def logarithmize(value: float) -> float:
     return 10.0 * math.log10(value)
 ```
 
-### Aggregation
-1. Alle Werte im Zeitintervall werden delogarithmiert
-2. Arithmetischer Mittelwert der linearen Werte
-3. Ergebnis wird wieder logarithmiert
+### Aggregationsmodi
 
-Dies stellt sicher, dass die physikalisch korrekte Mittelwertbildung für logarithmische Größen (wie dB) erfolgt.
+#### Logarithmische Aggregation (`log`)
+Für logarithmische Größen wie dB-Werte:
+1. Alle Werte im Zeitintervall werden delogarithmiert (dB → linear)
+2. Arithmetischer Mittelwert der linearen Werte
+3. Ergebnis wird wieder logarithmiert (linear → dB)
+
+Dies stellt sicher, dass die physikalisch korrekte Mittelwertbildung für logarithmische Größen erfolgt.
+
+**Beispiel**: Für Lärmpegel in dB(A) - da die dB-Skala logarithmisch ist, muss die korrekte Mittelwertbildung über die lineare Skala erfolgen.
+
+#### Lineare Aggregation (`lin`)
+Für lineare Größen wie Temperatur, Luftfeuchtigkeit, etc.:
+1. Einfacher arithmetischer Mittelwert aller Werte im Zeitintervall
+
+**Beispiel**: Für Temperatur in °C oder Luftfeuchtigkeit in % - hier kann direkt der Mittelwert gebildet werden.
 
 ## Troubleshooting
 

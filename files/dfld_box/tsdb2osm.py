@@ -11,8 +11,9 @@ Environment Variables:
     INFLUXDB_PASSWORD: InfluxDB password
     OSM_STATION_ID: 12 byte hex ID of the openSenseMap station/account
     OSM_SENSORS: Comma-separated list of sensor configurations
-                 Format: sensor_id:db_name:measurement:column_name,...
-                 Example: 5f8e9a1b2c3d4e5f6a7b8c9d:noise_db:noise_measurement:dB_A_avg
+                 Format: sensor_id:db_name:measurement:column_name:aggr_mode,...
+                 Example: 5f8e9a1b2c3d4e5f6a7b8c9d:noise_db:noise_measurement:dB_A_avg:log
+                 aggr_mode: "lin" for linear aggregation, "log" for logarithmic aggregation
     OSM_API_KEY: 32 byte hex value of the API token
     OSM_INTERVAL: Time in seconds between aggregation jobs (default: 300)
     OSM_API_URL: Base URL for openSenseMap API (default: https://api.opensensemap.org)
@@ -67,10 +68,10 @@ def parse_sensor_config(sensor_config_str: str) -> List[Dict[str, str]]:
     
     Args:
         sensor_config_str: Comma-separated list of sensor configurations
-                          Format: sensor_id:db_name:measurement:column_name,...
+                          Format: sensor_id:db_name:measurement:column_name:aggr_mode,...
     
     Returns:
-        List of dictionaries with keys: sensor_id, database, measurement, column
+        List of dictionaries with keys: sensor_id, database, measurement, column, aggr_mode
     """
     sensors = []
     for config in sensor_config_str.split(','):
@@ -79,16 +80,23 @@ def parse_sensor_config(sensor_config_str: str) -> List[Dict[str, str]]:
             continue
         
         parts = config.split(':')
-        if len(parts) != 4:
-            logging.error('Invalid sensor configuration: %s (expected format: sensor_id:db_name:measurement:column_name)', config)
+        if len(parts) != 5:
+            logging.error('Invalid sensor configuration: %s (expected format: sensor_id:db_name:measurement:column_name:aggr_mode)', config)
             continue
         
-        sensor_id, database, measurement, column = parts
+        sensor_id, database, measurement, column, aggr_mode = parts
+        aggr_mode = aggr_mode.strip().lower()
+        
+        if aggr_mode not in ['lin', 'log']:
+            logging.error('Invalid aggr_mode "%s" for sensor %s (must be "lin" or "log")', aggr_mode, sensor_id)
+            continue
+        
         sensors.append({
             'sensor_id': sensor_id.strip(),
             'database': database.strip(),
             'measurement': measurement.strip(),
-            'column': column.strip()
+            'column': column.strip(),
+            'aggr_mode': aggr_mode
         })
     
     if not sensors:
@@ -154,10 +162,10 @@ def logarithmize(value: float) -> float:
 
 def aggregate_data(sensor_config: Dict[str, str], interval_seconds: int) -> Optional[float]:
     """
-    Query InfluxDB for data in the last interval, delogarithmize, average, and logarithmize.
+    Query InfluxDB for data in the last interval and aggregate according to aggr_mode.
     
     Args:
-        sensor_config: Dictionary with sensor_id, database, measurement, and column
+        sensor_config: Dictionary with sensor_id, database, measurement, column, and aggr_mode
         interval_seconds: Time interval in seconds to query
     
     Returns:
@@ -175,6 +183,7 @@ def aggregate_data(sensor_config: Dict[str, str], interval_seconds: int) -> Opti
         # Build query using the specified measurement and column
         measurement = sensor_config['measurement']
         column = sensor_config['column']
+        aggr_mode = sensor_config['aggr_mode']
         
         query = (f"SELECT {column} FROM {measurement} "
                 f"WHERE time >= '{start_time.isoformat()}' AND time <= '{now.isoformat()}'")
@@ -196,21 +205,20 @@ def aggregate_data(sensor_config: Dict[str, str], interval_seconds: int) -> Opti
                           sensor_config['database'], measurement, column)
             return None
         
-        logging.debug('Found %d values for sensor %s', len(values), sensor_config['sensor_id'])
+        logging.debug('Found %d values for sensor %s (aggr_mode: %s)', len(values), sensor_config['sensor_id'], aggr_mode)
         
-        # Delogarithmize values
-        linear_values = [delogarithmize(v) for v in values]
+        # Aggregate based on mode
+        if aggr_mode == 'log':
+            # Logarithmic aggregation: delogarithmize → mean → logarithmize
+            linear_values = [delogarithmize(v) for v in values]
+            mean_linear = sum(linear_values) / len(linear_values)
+            result_value = logarithmize(mean_linear)
+        else:  # aggr_mode == 'lin'
+            # Linear aggregation: simple arithmetic mean
+            result_value = sum(values) / len(values)
+        logging.debug(f"Aggregated value for sensor {sensor_config['sensor_id']}: {result_value:.2f} dB ({aggr_mode} mode, from {len(values)} samples)")
         
-        # Calculate mean
-        mean_linear = sum(linear_values) / len(linear_values)
-        
-        # Logarithmize result
-        result_db = logarithmize(mean_linear)
-        
-        logging.debug('Aggregated value for sensor %s: %.2f dB (from %d samples)',
-                    sensor_config['sensor_id'], result_db, len(values))
-        
-        return result_db
+        return result_value
         
     except Exception as e:
         logging.error('Error aggregating data for sensor %s: %s', sensor_config['sensor_id'], e)
@@ -269,7 +277,7 @@ def process_sensors():
     
     sensor_configs = parse_sensor_config(os.environ['OSM_SENSORS'])
     
-    logging.info('Processing %d sensor(s) with interval %d seconds', len(sensor_configs), OSM_INTERVAL)
+    logging.debug('Processing %d sensor(s) with interval %d seconds', len(sensor_configs), OSM_INTERVAL)
     
     for sensor_config in sensor_configs:
         try:
@@ -313,7 +321,7 @@ def main():
         except Exception as e:
             logging.error('Error in main loop: %s', e)
         
-        logging.info('Sleeping for %d seconds...', OSM_INTERVAL)
+        logging.debug('Sleeping for %d seconds...', OSM_INTERVAL)
         sleeping_time = OSM_INTERVAL - (datetime.datetime.now(pytz.timezone(TZ)) - t0).total_seconds()
         time.sleep(sleeping_time if sleeping_time > 0 else 0)
 
