@@ -7,3 +7,5 @@ RPi.bme280==0.2.4
 psycopg2-binary==2.9.11
 uuid==1.30
 luma.oled==3.14.0
+requests==2.32.3
+pytz==2024.2
