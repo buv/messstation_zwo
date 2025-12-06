@@ -63,6 +63,7 @@ services:
       - MQTT_SERVER=${MQTT_SERVER}
       - MQTT_TOPIC=/dfld/sensors/noise/spl
       - READOUT_INTERVAL=1.0
+      - RETRY_INTERVAL=10.0
       - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure
@@ -234,6 +235,7 @@ services:
       - READOUT_INTERVAL=0.2
       - MQTT_READ_TIMEOUT=2.0
       - DISPLAY_TIMEOUT=2.0
+      - PROCESS_EMPTY=1
       - I2C_BUS=1
       - SSD1306_I2C_ADDR=0x3C
       - SSD1306_WIDTH=128
