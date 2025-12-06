@@ -40,8 +40,11 @@ services:
 {% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
       - ${DEVICE_DFLD}
 {% endif %}
+{% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0 and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
+    # No hardware sensors detected, only UDP listener active
     ports:
       - 11883:11883/udp
+{% endif %}
     # Required for hardware detection and access
     privileged: true
 
