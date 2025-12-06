@@ -110,6 +110,10 @@ class SSD1306DataSink(DataSink):
         self.height = int(self.config.get('SSD1306_HEIGHT', '64'))
         self.display_timeout = float(self.config.get('DISPLAY_TIMEOUT', '2.0'))
         self.last_write_time = 0
+        self.FONTSIZE_LARGE = 42
+        self.FONTSIZE_SMALL = 10
+        self.font_large = None
+        self.font_small = None
         self.logger.debug(f"SSD1306 DataSink config: i2c_bus={self.i2c_bus}, addr={hex(self.i2c_addr)}, size={self.width}x{self.height}, timeout={self.display_timeout}s")
 
     def connect(self):
@@ -136,6 +140,27 @@ class SSD1306DataSink(DataSink):
             
             self.connected = True
             self.logger.info("SSD1306 display initialized successfully.")
+
+            # Try to load a large font sized for 3-digit values to fill display
+            # For 128x64 display and format "XXX.X"
+            found = False
+            paths = [
+                     'ttf-dejavu/DejaVuSans-Bold.ttf',
+                     'ttf-dejavu/DejaVuSans.ttf',
+                     'truetype/dejavu/DejaVuSans-Bold.ttf'
+            ]
+            for sub_path in paths:
+                path = f"/usr/share/fonts/{sub_path}"
+                try:
+                    self.font_large = self.ImageFont.truetype(path, self.FONTSIZE_LARGE)
+                    self.font_small = self.ImageFont.truetype(path, self.FONTSIZE_SMALL)
+                    found = True
+                    break
+                except Exception:
+                    pass
+            if not found:
+                self.font_large = self.ImageFont.load_default()
+                self.font_small = self.ImageFont.load_default()
         except Exception as e:
             self.logger.error(f"Failed to initialize SSD1306 display: {e}")
             self.connected = False
@@ -148,13 +173,6 @@ class SSD1306DataSink(DataSink):
             self.logger.error("Display not connected.")
             return
         
-        # Check if display should be cleared due to timeout
-        current_time = time.time()
-        if self.last_write_time > 0 and (current_time - self.last_write_time) > self.display_timeout:
-            self.clear()
-            self.last_write_time = 0
-            return
-        
         try:
             # Parse JSON data
             data = json.loads(line)
@@ -162,54 +180,58 @@ class SSD1306DataSink(DataSink):
                 self.logger.warning(f"Received data is not a dict: {data}")
                 return
             
+            current_time = time.time()
             # Extract dB_A_avg value
             if "dB_A_avg" not in data:
                 self.logger.debug(f"JSON does not contain 'dB_A_avg': {data}")
-                return
-            
-            value = float(data["dB_A_avg"])
-            self.last_write_time = current_time
+
+                # Check if display should be cleared due to timeout
+                if self.last_write_time > 0 and (current_time - self.last_write_time) > self.display_timeout:
+                    value_text = "--.-"
+                else:
+                    return
+            else:
+                value_text = f"{float(data["dB_A_avg"]):.1f}"
+                self.last_write_time = current_time
             
             # Draw on display using luma canvas
             with self.canvas(self.display) as draw:
                 # Format the text - only numeric value with one decimal place
-                text = f"{value:.1f}"
-                
-                # Try to load a large font sized for 3-digit values to fill display
-                # For 128x64 display and format "XXX.X", use larger font size
-                try:
-                    # Try to use DejaVuSans font with large size (52pt for display-filling)
-                    # Alpine Linux path for ttf-dejavu package
-                    font = self.ImageFont.truetype("/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf", 52)
-                except Exception:
-                    try:
-                        # Fallback to non-bold variant
-                        font = self.ImageFont.truetype("/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf", 52)
-                    except Exception:
-                        try:
-                            # Try Debian/Ubuntu path as fallback
-                            font = self.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
-                        except Exception:
-                            # Use default font if no truetype fonts available
-                            font = self.ImageFont.load_default()
-                
-                # Get text bounding box to center it
-                bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                
+                text = value_text
+                text_width, text_height = self.calc_bb(draw, text, self.font_large)
                 # Calculate position to center text
                 x = (self.width - text_width) // 2
-                y = (self.height - text_height) // 2
-                
+                y = 0
                 # Draw text
-                draw.text((x, y), text, font=font, fill="white")
+                draw.text((x, y), text, font=self.font_large, fill="white")
+
+                text = "dB (A)"
+                text_width, text_height = self.calc_bb(draw, text, self.font_small)
+                # Calculate position to center text
+                x = (self.width - text_width) // 2
+                y = self.height - 24
+                # Draw text
+                draw.text((x, y), text, font=self.font_small, fill="white")
+
+                if "dB_A_min" in data and "dB_A_max" in data:
+                    text = f"min: {float(data['dB_A_min']):.1f} max: {float(data['dB_A_max']):.1f}"
+                    text_width, text_height = self.calc_bb(draw, text, self.font_small)
+                    # Calculate position to center text
+                    x = (self.width - text_width) // 2
+                    y = self.height - 10
+                    # Draw text
+                    draw.text((x, y), text, font=self.font_small, fill="white")
             
-            self.logger.debug(f"Display updated with value: {value:.1f} dBA")
+            self.logger.debug(f"Display updated with text: {value_text} dBA")
         except json.JSONDecodeError:
             self.logger.warning(f"Failed to decode JSON from line: {line}")
         except Exception as e:
             self.logger.error(f"Failed to update display: {e}")
+
+    def calc_bb(self, draw, text, font):
+        # Get text bounding box to center it
+        bbox = draw.textbbox((0, 0), text, font=font)
+        return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
     def clear(self):
         if not self.connected:
