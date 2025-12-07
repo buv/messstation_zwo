@@ -1,5 +1,4 @@
 services:
-{% if hw_conf["ADSB_AVAILABLE"]==1 %}
   ultrafeeder:
     image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
     # Note - if you want to enable telegraf for use with InfluxDB/Prometheus and Grafana,
@@ -10,8 +9,6 @@ services:
     restart: unless-stopped
     device_cgroup_rules:
       - "c 189:* rwm"
-    networks:
-      - network
     ports:
       - 8080:80/tcp
     environment:
@@ -68,69 +65,36 @@ services:
       - /run:exec,size=256M
       - /tmp:size=128M
       - /var/log:size=32M
-{% endif %}
-
-  influxdb:
-    image: influxdb:1.11.8-alpine
-    restart: unless-stopped
-    container_name: influxdb
     networks:
       - network
-    ports:
-      - 8086:8086
-      - 8088:8088
-    volumes:
-      - influxdb-data:/var/lib/influxdb
-      - influxdb-config:/etc/influxdb
+
+  detect_flyover:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: detect_flyover
+    entrypoint: python /dfld/detect_flyover.py
     environment:
-      - INFLUXDB_DB=${INFLUXDB_DATABASE}
-      - INFLUXDB_ADMIN_USER=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_ADMIN_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - POSTGRES_USERNAME=${POSTGRES_ADMIN_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+      - POSTGRES_SERVER=${POSTGRES_SERVERNAME}:${POSTGRES_SERVERPORT}
+      - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
+      - STATION_POSITION=${LON}:${LAT}:${ALT_M}
+      - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure
-      - homepage.name=InfluxDB
-      - homepage.icon=influxdb.svg
-      - homepage.description=InfluxDB is 😎
+      - homepage.name=detect_flyover
+      - homepage.icon=/icons/flight-landing-icon.svg
+      - homepage.description=We get the noise
       - homepage.showStats=true
-
-  mqtt:
-    image: eclipse-mosquitto:latest
-    container_name: mqtt
     networks:
       - network
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - ${DOCKER_EXTERNAL_ROOT}/mqtt/config:/mosquitto/config:rw
-      - mqtt-data:/mosquitto/data:rw
-      - mqtt-log:/mosquitto/log:rw
-    restart: unless-stopped
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=Eclipse Mosquitto
-      - homepage.icon=mosquitto.svg
-      - homepage.description=We transfer all the data
-      - homepage.showStats=true
 
 volumes:
-  influxdb-data:
-  influxdb-config:
-  mqtt-data:
-  mqtt-log:
-{% if hw_conf["ADSB_AVAILABLE"]==1 %}
   ultrafeeder-globe_history:
   ultrafeeder-graphs1090:
-{% endif %}
 
 networks:
     network:
         name: dfld_network
-        driver: bridge
-        driver_opts:
-            com.docker.network.enable_ipv6: "false"
-        ipam:
-            driver: default
-            config:
-                - subnet: 172.21.0.0/24
-                  gateway: 172.21.0.1
+        external: true

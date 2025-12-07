@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     container_name: dnms2mqtt
     entrypoint: python /dfld/dnms2mqtt.py
+    env_file:
+      - /boot/firmware/adsb.env
+      - /boot/firmware/dfld.env
     environment:
       - DEVICE=${DEVICE_DNMS}
       - DNMS_BAUDRATE=500000
@@ -33,6 +36,9 @@ services:
     restart: unless-stopped
     container_name: dfld2mqtt
     entrypoint: python /dfld/dfld2mqtt.py
+    env_file:
+      - /boot/firmware/adsb.env
+      - /boot/firmware/dfld.env
     environment:
       - DEVICE=${DEVICE_DFLD}
       - DFLD_BAUDRATE=9600
@@ -58,6 +64,9 @@ services:
     restart: unless-stopped
     container_name: dnmsiic2mqtt
     entrypoint: python /dfld/dnmsiic2mqtt.py
+    env_file:
+      - /boot/firmware/adsb.env
+      - /boot/firmware/dfld.env
     environment:
       - DNMS_I2C_ADDRESS=0x55
       - MQTT_SERVER=${MQTT_SERVER}
@@ -99,36 +108,15 @@ services:
       - ${DEVICE_I2C}
 {% endif %}
 
-{% if hw_conf["ADSB_AVAILABLE"]==1 %}
-  detect_flyover:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: detect_flyover
-    entrypoint: python /dfld/detect_flyover.py
-    environment:
-      - POSTGRES_USERNAME=${POSTGRES_ADMIN_USERNAME}
-      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
-      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
-      - POSTGRES_SERVER=${POSTGRES_SERVERNAME}:${POSTGRES_SERVERPORT}
-      - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
-      - STATION_POSITION=${LON}:${LAT}:${ALT_M}
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=detect_flyover
-      - homepage.icon=/icons/flight-landing-icon.svg
-      - homepage.description=We get the noise
-      - homepage.showStats=true
-    networks:
-      - network
-{% endif %}
-
 {% if dfld_legacy | length != 0 %}
   tsdb2ftp:
     image: dfld_box
     restart: unless-stopped
     container_name: tsdb2ftp
     entrypoint: python /dfld/tsdb2ftp.py
+    env_file:
+      - /boot/firmware/adsb.env
+      - /boot/firmware/dfld.env
     environment:
       - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
       - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
@@ -155,6 +143,9 @@ services:
     restart: unless-stopped
     container_name: mqtt2liveview
     entrypoint: python /dfld/mqtt2liveview.py
+    env_file:
+      - /boot/firmware/adsb.env
+      - /boot/firmware/dfld.env
     environment:
       - DFLD_REGION=${DFLD_REGION}
       - DFLD_STATION=${DFLD_STATION}

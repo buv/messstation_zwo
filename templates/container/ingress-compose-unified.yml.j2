@@ -50,30 +50,6 @@ services:
     # Required for hardware detection and access
     privileged: true
 
-{% if hw_conf["ADSB_AVAILABLE"]==1 %}
-  detect_flyover:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: detect_flyover
-    entrypoint: python /dfld/detect_flyover.py
-    environment:
-      - POSTGRES_USERNAME=${POSTGRES_ADMIN_USERNAME}
-      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
-      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
-      - POSTGRES_SERVER=${POSTGRES_SERVERNAME}:${POSTGRES_SERVERPORT}
-      - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
-      - STATION_POSITION=${LON}:${LAT}:${ALT_M}
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=detect_flyover
-      - homepage.icon=/icons/flight-landing-icon.svg
-      - homepage.description=We get the noise
-      - homepage.showStats=true
-    networks:
-      - network
-{% endif %}
-
 {% if dfld_legacy | length != 0 %}
   tsdb2ftp:
     image: dfld_box

@@ -1,0 +1,24 @@
+---
+
+- name: Create environment files for infrastructure services
+  ansible.builtin.include_tasks: create_env_files.yml
+
+- name: Create dfld network
+  ansible.builtin.include_tasks: network.yml
+
+- name: Include container specific tasks
+  ansible.builtin.include_tasks: "{{ item }}.yml"
+  loop: "{{ infrastructure_containers[deployment_mode] }}"
+
+- name: Deploy the infrastructure stack
+  ansible.builtin.include_tasks:
+    file: "deploy_infrastructure.yml"
+
+- name: Deploy the ingress stack
+  ansible.builtin.include_tasks:
+    file: "deploy_ingress.yml"
+
+- name: Deploy the adsb stack
+  ansible.builtin.include_tasks:
+    file: "deploy_adsb.yml"
+  when: hw_conf["ADSB_AVAILABLE"] == 1

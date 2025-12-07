@@ -1,0 +1,75 @@
+---
+
+- name: Create ingress folder
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/ingress"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    state: directory
+    mode: '0755'
+
+- name: Write docker compose file for ingress
+  ansible.builtin.template:
+    src: "templates/container/ingress-compose.yml.j2"
+    dest: "{{ dfld_dir }}/ingress/docker-compose.yml"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+
+- name: Start ingress stack with docker compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ dfld_dir }}/ingress"
+    files:
+      - "{{ dfld_dir }}/ingress/docker-compose.yml"
+    env_files:
+      - "/boot/firmware/dfld.env"
+      - "/boot/firmware/adsb.env"
+      - "{{ dfld_dir }}/docker-compose.env"
+    state: present
+    pull: never
+    wait: true
+
+- name: Create reload file for ingress
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dfld-ingress-reload.service
+    content: |
+      [Unit]
+      Description=Reload DFLD Ingress Stack
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
+      WorkingDirectory={{ dfld_dir }}/ingress
+      ExecStart=/usr/bin/docker compose -f {{ dfld_dir }}/ingress/docker-compose.yml --env-file /boot/firmware/adsb.env --env-file /boot/firmware/dfld.env --env-file {{ dfld_dir }}/docker-compose.env up -d --force-recreate
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create systemd.path file for ingress reload on file change
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dfld-ingress-reload.path
+    content: |
+      [Unit]
+      Description=Path to trigger DFLD Ingress Stack reload
+
+      [Path]
+      PathChanged={{ dfld_dir }}/docker-compose.env
+      PathChanged=/boot/firmware/adsb.env
+      PathChanged=/boot/firmware/dfld.env
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable and start ingress reload timer
+  ansible.builtin.systemd:
+    name: dfld-ingress-reload.path
+    enabled: true
+    state: started
+    daemon_reload: true

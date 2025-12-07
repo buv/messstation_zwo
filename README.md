@@ -25,7 +25,7 @@ Ansible Playbook zum Aufsetzen einer [DFLD](https://www.dfld.de/) Messstation ZW
 
 ```bash
 # Ansible Controller System auf den aktuellen Patchstand bringen
-sudo apt-get update
+sudo apt update && sudo apt full-upgrade -y
 
 # Ansible und git installieren
 sudo apt-get install -y git ansible
@@ -39,14 +39,54 @@ cd messstation_zwo
 # Anpassungen an Konfiguration vornehmen
 cp inventory.yml.example inventory.yml
 
-emacs/vim/nano inventory.yml
-emacs/vim/nano ansible.cfg
+emacs/vi/vim/nano inventory.yml
+emacs/vi/vim/nano ansible.cfg
 
 # Playbook lokal starten und Messstation ZWO installieren.
-./install_messstation.sh
+# Installationsmode "full" ist für Raspberry Pi, "mini" ist für Pico Zero W
+./install_messstation.sh --mode [full|mini]
 
 # alternativ Playbook remote ausführen.
-./install_messstation.sh <IP Adresse Remote Raspi>
+./install_messstation.sh --mode [full|mini] <IP Adresse Remote Raspi>
 ```
 
 Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentation](https://docs.ansible.com/ansible/latest/index.html).
+
+## Konfiguration nach der Installation
+
+### Umgebungsvariablen anpassen
+
+Die Messstation ZWO verwendet zwei zentrale Konfigurationsdateien für Umgebungsvariablen:
+
+- `/boot/firmware/dfld.env` - Allgemeine DFLD-Konfiguration (Standort, Zeitzone, etc.)
+- `/boot/firmware/adsb.env` - ADS-B spezifische Konfiguration
+
+#### Ändern der Konfiguration
+
+**Option 1: Direkt auf dem Raspberry Pi (via SSH)**
+
+```bash
+# DFLD Konfiguration bearbeiten
+sudo nano /boot/firmware/dfld.env
+
+# oder ADS-B Konfiguration bearbeiten
+sudo nano /boot/firmware/adsb.env
+```
+
+**Option 2: Über Windows/PC mit SD-Kartenleser**
+
+1. Raspberry Pi herunterfahren
+2. SD-Karte entnehmen und in einen PC-Kartenleser stecken
+3. Die Boot-Partition wird als Laufwerk angezeigt
+4. Dateien `dfld.env` und/oder `adsb.env` mit einem Texteditor öffnen und bearbeiten
+5. Änderungen speichern, SD-Karte sicher entfernen und wieder in den Raspberry Pi einsetzen
+6. Raspberry Pi starten
+
+**Gewünschte Variablen ändern** (z.B. LAT, LON, ALT_M, TZ)
+
+**Automatischer Neustart der Container:**
+
+Die Container werden automatisch über systemd `.path` Units neu gestartet, sobald systemd eine Änderung an den Konfigurationsdateien erkennt. Es ist kein manueller Eingriff notwendig.
+
+
+

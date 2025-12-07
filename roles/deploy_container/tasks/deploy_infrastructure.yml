@@ -1,0 +1,22 @@
+---
+
+- name: Create infrastructure compose file
+  ansible.builtin.template:
+    src: "templates/container/infrastructure-compose.yml.j2"
+    dest: "{{ dfld_dir }}/infrastructure-compose.yml"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+
+- name: Start infrastructure stack with docker compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ dfld_dir }}"
+    files:
+      - "{{ dfld_dir }}/infrastructure-compose.yml"
+    env_files:
+      - "/boot/firmware/dfld.env"
+      - "/boot/firmware/adsb.env"
+      - "{{ dfld_dir }}/docker-compose.env"
+    state: present
+    pull: missing
+    wait: true
