@@ -17,15 +17,11 @@ cleansession true
 keepalive_interval 60
 try_private true
 
-# Authentifizierung (falls genutzt)
-# remote_username B_USER
-# remote_password B_PASS
-
+{% if (cindy_s_mqtt_tls is defined and cindy_s_mqtt_tls > 0) or (cindy_s_mqtt_broker.endswith(':8883')) %}
 # TLS (optional)
-# bridge_cafile /etc/mosquitto/certs/ca.crt
-# bridge_certfile /etc/mosquitto/certs/client.crt
-# bridge_keyfile /etc/mosquitto/certs/client.key
-# tls_version tlsv1.2
+bridge_cafile /etc/ssl/certs/ca-certificates.crt
+tls_version tlsv1.2
+{% endif %}
 
 topic # out 1 dfld/sensors/noise/ sensebox/cindy-s-test/
 {% endif %}
