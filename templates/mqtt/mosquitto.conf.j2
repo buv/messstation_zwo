@@ -17,7 +17,7 @@ cleansession true
 keepalive_interval 60
 try_private true
 
-{% if (mqtt_bridged_tls is defined and mqtt_bridged_tls > 0) or (mqtt_bridged_broker.endswith(':8883')) %}
+{% if mqtt_bridged_tls is defined and mqtt_bridged_tls.lower() in ['true', 'yes', '1'] %}
 # TLS (optional)
 bridge_cafile /etc/ssl/certs/ca-certificates.crt
 tls_version tlsv1.2
