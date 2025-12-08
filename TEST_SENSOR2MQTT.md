@@ -27,7 +27,7 @@ sudo docker run --rm --privileged \
   --network host \
   -e MQTT_SERVER=localhost \
   -e MQTT_PORT=1883 \
-  -e MQTT_TOPIC=/dfld/sensors/test \
+  -e MQTT_TOPIC=dfld/sensors/test \
   -e LOG_LEVEL=DEBUG \
   -e READOUT_INTERVAL=5 \
   dfld_box python sensor2mqtt.py
@@ -36,10 +36,10 @@ sudo docker run --rm --privileged \
 ### 3. MQTT-Daten empfangen (in separatem Terminal)
 ```bash
 # Mit mosquitto_sub
-mosquitto_sub -h localhost -t '/dfld/sensors/test' -v
+mosquitto_sub -h localhost -t 'dfld/sensors/test' -v
 
 # Oder im Container
-docker exec -it mosquitto mosquitto_sub -t '/dfld/sensors/test' -v
+docker exec -it mosquitto mosquitto_sub -t 'dfld/sensors/test' -v
 ```
 
 ### 4. UDP-Test
@@ -184,7 +184,7 @@ docker stats sensor2mqtt_test --no-stream
 -e READOUT_INTERVAL=1
 
 # MQTT-Messages zählen
-timeout 60 mosquitto_sub -h localhost -t '/dfld/sensors/#' -v | wc -l
+timeout 60 mosquitto_sub -h localhost -t 'dfld/sensors/#' -v | wc -l
 
 # Erwartung: Bei 1 Sekunde Intervall ca. 60 Messages pro Minute pro Sensor
 ```
@@ -267,7 +267,7 @@ chmod +x test_sensor2mqtt.sh
 - [ ] Docker-Image gebaut: `cd files/dfld_box && sudo ./build.sh`
 - [ ] Hardware-Erkennung getestet: `sudo docker run --rm --privileged -v /dev:/dev:ro dfld_box python detect_hw.py`
 - [ ] Lokaler Test erfolgreich: Container startet und sendet Daten
-- [ ] MQTT-Topics korrekt: Daten kommen bei `/dfld/sensors` an
+- [ ] MQTT-Topics korrekt: Daten kommen bei `dfld/sensors` an
 - [ ] Logs sauber: Keine ERROR-Messages
 - [ ] Backup erstellt: Alte Compose-Files gesichert
 - [ ] Compose-Template aktualisiert: `ingress-compose-unified.yml.j2`
@@ -294,5 +294,5 @@ ansible-playbook -i inventory.yml full.yml --tags deploy_ingress_stack
 docker compose -f ingress-compose.yml up -d
 
 # 4. Funktionalität prüfen
-mosquitto_sub -h localhost -t '/dfld/sensors/#' -v
+mosquitto_sub -h localhost -t 'dfld/sensors/#' -v
 ```

@@ -15,7 +15,7 @@ def main():
     config = SimpleNamespace(**{
         "log_level": os.getenv("LOG_LEVEL", "INFO").upper(),
         "mqtt_server": os.getenv("MQTT_SERVER", "mqtt:1883"),
-        "topic": os.getenv("MQTT_TOPIC", "/dfld/sensors/noise/#"),
+        "topic": os.getenv("MQTT_TOPIC", "dfld/sensors/noise/#"),
         "qos": int(os.getenv("MQTT_QOS", 0)),
         "keepalive": int(os.getenv("MQTT_KEEPALIVE", 60)),
         "client_id": os.getenv("MQTT_CLIENT_ID", f"mqtt2liveview-{os.getpid()}"),

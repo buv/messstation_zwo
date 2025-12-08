@@ -155,7 +155,7 @@ Alle Sensoren nutzen die gleichen Basis-Konfigurationen:
 environment:
   # MQTT
   - MQTT_SERVER=${MQTT_SERVER}
-  - MQTT_TOPIC=/dfld/sensors
+  - MQTT_TOPIC=dfld/sensors
   
   # Timing
   - READOUT_INTERVAL=60      # Ausleseintervall in Sekunden
@@ -180,14 +180,14 @@ Die MQTT-Topics bleiben unverändert, nur das `source`-Feld im JSON identifizier
 
 **Vorher:**
 ```
-/dfld/sensors/noise/spl  <- von dnms2mqtt
-/dfld/sensors/noise/spl  <- von dfld2mqtt
-/dfld/sensors/air        <- von bme2mqtt
+dfld/sensors/noise/spl  <- von dnms2mqtt
+dfld/sensors/noise/spl  <- von dfld2mqtt
+dfld/sensors/air        <- von bme2mqtt
 ```
 
 **Nachher:**
 ```
-/dfld/sensors  <- alle Sensoren mit "source"-Feld im JSON
+dfld/sensors  <- alle Sensoren mit "source"-Feld im JSON
 ```
 
 **JSON-Format mit source-Feld:**
@@ -225,7 +225,7 @@ docker logs sensor2mqtt 2>&1 | grep "Starting"
 ### Problem: Daten kommen nicht an
 ```bash
 # MQTT-Traffic prüfen
-docker exec -it mosquitto mosquitto_sub -t '/dfld/sensors/#' -v
+docker exec -it mosquitto mosquitto_sub -t 'dfld/sensors/#' -v
 
 # Sensor-Thread-Status prüfen
 docker logs sensor2mqtt 2>&1 | grep "thread"
