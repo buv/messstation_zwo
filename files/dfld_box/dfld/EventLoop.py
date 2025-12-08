@@ -14,6 +14,7 @@ class EventLoop(object):
         self.readout_interval = float(os.getenv('READOUT_INTERVAL', 60))
         self.retry_interval = float(os.getenv('RETRY_INTERVAL', 120))
         self.process_empty = float(os.getenv('PROCESS_EMPTY', 0))
+        self.dfld_station_id = os.getenv('DFLD_STATION_ID', 'default-station')
         self.running = False
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -32,7 +33,7 @@ class EventLoop(object):
 
     def process(self, data: dict, sink: DataSink):
         if (self.process_empty or data) and isinstance(data, dict):
-            sink.write(json.dumps({"source": self.data_source.source} | data))
+            sink.write(json.dumps({"device": self.data_source.source, "station": self.dfld_station_id} | data))
         else:
             self.logger.warning('No valid data to process')
 

@@ -6,6 +6,7 @@ services:
     container_name: dnms2mqtt
     entrypoint: python /dfld/dnms2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DEVICE=${DEVICE_DNMS}
       - DNMS_BAUDRATE=500000
       - MQTT_SERVER=${MQTT_SERVER}
@@ -34,6 +35,7 @@ services:
     container_name: dfld2mqtt
     entrypoint: python /dfld/dfld2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DEVICE=${DEVICE_DFLD}
       - DFLD_BAUDRATE=9600
       - MQTT_SERVER=${MQTT_SERVER}
@@ -59,6 +61,7 @@ services:
     container_name: dnmsiic2mqtt
     entrypoint: python /dfld/dnmsiic2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DNMS_I2C_ADDRESS=0x55
       - MQTT_SERVER=${MQTT_SERVER}
       - MQTT_TOPIC=dfld/sensors/noise/spl
@@ -84,6 +87,7 @@ services:
     container_name: bme2mqtt
     entrypoint: python /dfld/bme2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - MQTT_SERVER=${MQTT_SERVER}
       - MQTT_TOPIC=dfld/sensors/air
       - READOUT_INTERVAL=60
@@ -211,6 +215,7 @@ services:
     container_name: udp2mqtt
     entrypoint: python /dfld/udp2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - UDP_LISTEN_PORT=11883
       - MQTT_SERVER=${MQTT_SERVER}
       - MQTT_TOPIC=dfld/sensors/noise/spl
