@@ -7,21 +7,21 @@ persistence_file mosquitto.db
 persistence_location /mosquitto/data/
 log_dest file /mosquitto/log/mosquitto.log
 
-{% if cindy_s_mqtt_broker is defined %}
-# ---- Bridge von local nach cindy_s ----
-connection to_cindy_s
-address {{ cindy_s_mqtt_broker }}
+{% if mqtt_bridged_broker is defined and mqtt_bridged_rename is defined %}
+# ---- Bridge von lokalem zu zentralem MQTT Server  ----
+connection to_central_broker
+address {{ mqtt_bridged_broker }}
 bridge_protocol_version mqttv311
 clientid dfld-{{ dfld_region }}-{{ dfld_station }}
 cleansession true
 keepalive_interval 60
 try_private true
 
-{% if (cindy_s_mqtt_tls is defined and cindy_s_mqtt_tls > 0) or (cindy_s_mqtt_broker.endswith(':8883')) %}
+{% if (mqtt_bridged_tls is defined and mqtt_bridged_tls > 0) or (mqtt_bridged_broker.endswith(':8883')) %}
 # TLS (optional)
 bridge_cafile /etc/ssl/certs/ca-certificates.crt
 tls_version tlsv1.2
-{% endif %}
+{% endif %} 
 
-topic # out 1 dfld/sensors/noise/ sensebox/cindy-s-test/
+topic # out 1 {{ mqtt_bridged_rename }}
 {% endif %}
