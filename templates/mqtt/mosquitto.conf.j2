@@ -12,7 +12,7 @@ log_dest file /mosquitto/log/mosquitto.log
 connection to_cindy_s
 address {{ cindy_s_mqtt_broker }}
 bridge_protocol_version mqttv311
-clientid dfld-{{ DFLD_REGION }}-{{ DFLD_STATION_ID }}
+clientid dfld-{{ dfld_region }}-{{ dfld_station }}
 cleansession true
 keepalive_interval 60
 try_private true
