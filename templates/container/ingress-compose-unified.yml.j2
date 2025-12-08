@@ -7,7 +7,7 @@ services:
     entrypoint: python /dfld/sensor2mqtt.py
     environment:
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors
+      - MQTT_TOPIC=dfld/sensors
       - READOUT_INTERVAL=60
       - RETRY_INTERVAL=120
       - LOG_LEVEL=INFO
@@ -111,7 +111,7 @@ services:
       - DFLD_LEGACY=${DFLD_LEGACY}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -163,7 +163,7 @@ services:
       - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/#
+      - MQTT_TOPIC=dfld/sensors/#
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -183,7 +183,7 @@ services:
     entrypoint: python /dfld/mqtt2display.py
     environment:
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/#
+      - MQTT_TOPIC=dfld/sensors/noise/spl/#
       - READOUT_INTERVAL=0.2
       - MQTT_READ_TIMEOUT=2.0
       - DISPLAY_TIMEOUT=2.0

@@ -321,7 +321,7 @@ class MqttDataSource(DataSource, abc.ABC):
         super().__init__()
         self.source = "mqtt"
         self.mqtt_server = os.getenv('MQTT_SERVER', 'mqtt:1883')
-        self.topic = os.getenv('MQTT_TOPIC', '/dfld/sensors/#')
+        self.topic = os.getenv('MQTT_TOPIC', 'dfld/sensors/#')
         self.qos = int(os.getenv('MQTT_QOS', 0))
         self.keepalive = int(os.getenv('MQTT_KEEPALIVE', 60))
         self.client_id = os.getenv('MQTT_CLIENT_ID', f"mqtt_datasource-{os.getpid()}")

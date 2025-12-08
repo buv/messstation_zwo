@@ -9,7 +9,7 @@ services:
       - DEVICE=${DEVICE_DNMS}
       - DNMS_BAUDRATE=500000
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -37,7 +37,7 @@ services:
       - DEVICE=${DEVICE_DFLD}
       - DFLD_BAUDRATE=9600
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -61,7 +61,7 @@ services:
     environment:
       - DNMS_I2C_ADDRESS=0x55
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=1.0
       - RETRY_INTERVAL=10.0
       - LOG_LEVEL=INFO
@@ -85,7 +85,7 @@ services:
     entrypoint: python /dfld/bme2mqtt.py
     environment:
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/air
+      - MQTT_TOPIC=dfld/sensors/air
       - READOUT_INTERVAL=60
       - LOG_LEVEL=INFO
     labels:
@@ -163,7 +163,7 @@ services:
       - DFLD_LEGACY=${DFLD_LEGACY}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -213,7 +213,7 @@ services:
     environment:
       - UDP_LISTEN_PORT=11883
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -239,7 +239,7 @@ services:
       - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/#
+      - MQTT_TOPIC=dfld/sensors/#
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -259,7 +259,7 @@ services:
     entrypoint: python /dfld/mqtt2display.py
     environment:
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/#
+      - MQTT_TOPIC=dfld/sensors/noise/spl/#
       - READOUT_INTERVAL=0.2
       - MQTT_READ_TIMEOUT=2.0
       - DISPLAY_TIMEOUT=2.0
