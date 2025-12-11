@@ -314,3 +314,81 @@ class UdpDataSource(DataSource, abc.ABC):
             self.logger.error(f"Failed to read from UDP socket: {e}")
             self.connected = False
         return {}
+
+
+class MqttDataSource(DataSource, abc.ABC):
+    def __init__(self):
+        super().__init__()
+        self.source = "mqtt"
+        self.mqtt_server = os.getenv('MQTT_SERVER', 'mqtt:1883')
+        self.topic = os.getenv('MQTT_TOPIC', 'dfld/sensors/#')
+        self.qos = int(os.getenv('MQTT_QOS', 0))
+        self.keepalive = int(os.getenv('MQTT_KEEPALIVE', 60))
+        self.client_id = os.getenv('MQTT_CLIENT_ID', f"mqtt_datasource-{os.getpid()}")
+        self.timeout = float(os.getenv('MQTT_READ_TIMEOUT', 2.0))
+        self.logger.debug(f"MQTT DataSource config: server={self.mqtt_server}, topic={self.topic}")
+        self.client = None
+        self.last_data = None
+        self.last_data_time = 0
+        self.connected = False
+
+    def init(self):
+        import paho.mqtt.client as mqtt
+        try:
+            self.logger.info(f"Initializing MQTT client connecting to {self.mqtt_server}...")
+            
+            self.client = mqtt.Client(
+                client_id=self.client_id,
+                clean_session=True,
+                protocol=mqtt.MQTTv311,
+                transport="tcp",
+            )
+            
+            # Set callbacks
+            def on_connect(cli, userdata, flags, rc):
+                if rc == 0:
+                    self.logger.info(f"Connected to MQTT broker, subscribing to {self.topic}")
+                    cli.subscribe(self.topic, qos=self.qos)
+                else:
+                    self.logger.error(f"Failed to connect to MQTT broker, rc={rc}")
+            
+            def on_message(cli, userdata, msg):
+                import json
+                try:
+                    data = json.loads(msg.payload)
+                    if isinstance(data, dict):
+                        self.last_data = data
+                        self.last_data_time = time.time()
+                        self.logger.debug(f"Received MQTT message: {data}")
+                except json.JSONDecodeError:
+                    self.logger.warning(f"Failed to decode JSON from MQTT payload: {msg.payload}")
+                except Exception as e:
+                    self.logger.error(f"Error processing MQTT message: {e}")
+            
+            self.client.on_connect = on_connect
+            self.client.on_message = on_message
+            
+            # Connect and start loop
+            host, port = self.mqtt_server.split(':')
+            port = int(port)
+            self.client.connect(host, port, keepalive=self.keepalive)
+            self.client.loop_start()
+            
+            self.connected = True
+            self.logger.info("MQTT client initialized successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize MQTT client: {e}")
+            self.connected = False
+
+    def read(self) -> dict:
+        if not self.connected:
+            raise RuntimeError("Data source not connected. Call init() first.")
+        
+        # Check if we have recent data (within timeout window)
+        if self.last_data and (time.time() - self.last_data_time) < self.timeout:
+            data = self.last_data
+            self.last_data = None  # Clear so we don't return the same data twice
+            return data
+        
+        # No new data available
+        return {}

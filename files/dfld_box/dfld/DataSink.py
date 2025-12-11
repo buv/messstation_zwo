@@ -97,3 +97,159 @@ class MqttDataSink(DataSink, abc.ABC):
         self.connected = False
         self.logger.info("Disconnected from MQTT broker.")
         super().close()
+
+
+# SSD1306DataSink inherits from DataSink
+class SSD1306DataSink(DataSink):
+    def __init__(self):
+        super().__init__()
+        self.display = None
+        self.i2c_bus = int(self.config.get('I2C_BUS', '1'))
+        self.i2c_addr = int(self.config.get('SSD1306_I2C_ADDR', '0x3C'), 16)
+        self.width = int(self.config.get('SSD1306_WIDTH', '128'))
+        self.height = int(self.config.get('SSD1306_HEIGHT', '64'))
+        self.display_timeout = float(self.config.get('DISPLAY_TIMEOUT', '2.0'))
+        self.last_write_time = 0
+        self.FONTSIZE_LARGE = 42
+        self.FONTSIZE_SMALL = 10
+        self.font_large = None
+        self.font_small = None
+        self.logger.debug(f"SSD1306 DataSink config: i2c_bus={self.i2c_bus}, addr={hex(self.i2c_addr)}, size={self.width}x{self.height}, timeout={self.display_timeout}s")
+
+    def connect(self):
+        try:
+            from luma.core.interface.serial import i2c
+            from luma.oled.device import ssd1306
+            from luma.core.render import canvas
+            from PIL import ImageFont
+            
+            self.logger.info(f"Initializing SSD1306 display on I2C bus {self.i2c_bus} at address {hex(self.i2c_addr)}...")
+            
+            # Create I2C interface
+            serial = i2c(port=self.i2c_bus, address=self.i2c_addr)
+            
+            # Create display object
+            self.display = ssd1306(serial, width=self.width, height=self.height)
+            
+            # Clear display
+            self.display.clear()
+            
+            # Store modules for later use
+            self.canvas = canvas
+            self.ImageFont = ImageFont
+            
+            self.connected = True
+            self.logger.info("SSD1306 display initialized successfully.")
+
+            # Try to load a large font sized for 3-digit values to fill display
+            # For 128x64 display and format "XXX.X"
+            found = False
+            paths = [
+                     'ttf-dejavu/DejaVuSans-Bold.ttf',
+                     'ttf-dejavu/DejaVuSans.ttf',
+                     'truetype/dejavu/DejaVuSans-Bold.ttf'
+            ]
+            for sub_path in paths:
+                path = f"/usr/share/fonts/{sub_path}"
+                try:
+                    self.font_large = self.ImageFont.truetype(path, self.FONTSIZE_LARGE)
+                    self.font_small = self.ImageFont.truetype(path, self.FONTSIZE_SMALL)
+                    found = True
+                    break
+                except Exception:
+                    pass
+            if not found:
+                self.font_large = self.ImageFont.load_default()
+                self.font_small = self.ImageFont.load_default()
+        except Exception as e:
+            self.logger.error(f"Failed to initialize SSD1306 display: {e}")
+            self.connected = False
+
+    def write(self, line: str):
+        import json
+        import time
+        
+        if not self.connected:
+            self.logger.error("Display not connected.")
+            return
+        
+        try:
+            # Parse JSON data
+            data = json.loads(line)
+            if not isinstance(data, dict):
+                self.logger.warning(f"Received data is not a dict: {data}")
+                return
+            
+            current_time = time.time()
+            # Extract dB_A_avg value
+            if "dB_A_avg" not in data:
+                self.logger.debug(f"JSON does not contain 'dB_A_avg': {data}")
+
+                # Check if display should be cleared due to timeout
+                if self.last_write_time > 0 and (current_time - self.last_write_time) > self.display_timeout:
+                    value_text = "--.-"
+                else:
+                    return
+            else:
+                value_text = f"{float(data["dB_A_avg"]):.1f}"
+                self.last_write_time = current_time
+            
+            # Draw on display using luma canvas
+            with self.canvas(self.display) as draw:
+                # Format the text - only numeric value with one decimal place
+                text = value_text
+                text_width, text_height = self.calc_bb(draw, text, self.font_large)
+                # Calculate position to center text
+                x = (self.width - text_width) // 2
+                y = 0
+                # Draw text
+                draw.text((x, y), text, font=self.font_large, fill="white")
+
+                text = "dB (A)"
+                text_width, text_height = self.calc_bb(draw, text, self.font_small)
+                # Calculate position to center text
+                x = (self.width - text_width) // 2
+                y = self.height - 24
+                # Draw text
+                draw.text((x, y), text, font=self.font_small, fill="white")
+
+                if "dB_A_min" in data and "dB_A_max" in data:
+                    text = f"min: {float(data['dB_A_min']):.1f} max: {float(data['dB_A_max']):.1f}"
+                    text_width, text_height = self.calc_bb(draw, text, self.font_small)
+                    # Calculate position to center text
+                    x = (self.width - text_width) // 2
+                    y = self.height - 10
+                    # Draw text
+                    draw.text((x, y), text, font=self.font_small, fill="white")
+            
+            self.logger.debug(f"Display updated with text: {value_text} dBA")
+        except json.JSONDecodeError:
+            self.logger.warning(f"Failed to decode JSON from line: {line}")
+        except Exception as e:
+            self.logger.error(f"Failed to update display: {e}")
+
+    def calc_bb(self, draw, text, font):
+        # Get text bounding box to center it
+        bbox = draw.textbbox((0, 0), text, font=font)
+        return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+    def clear(self):
+        if not self.connected:
+            return
+        
+        try:
+            self.display.clear()
+            self.logger.debug("Display cleared.")
+        except Exception as e:
+            self.logger.error(f"Failed to clear display: {e}")
+
+    def close(self):
+        if self.display:
+            try:
+                self.display.clear()
+                self.display.cleanup()
+            except Exception:
+                pass
+        self.connected = False
+        self.logger.info("SSD1306 display closed.")
+        super().close()

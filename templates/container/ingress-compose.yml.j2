@@ -9,10 +9,11 @@ services:
       - /boot/firmware/adsb.env
       - /boot/firmware/dfld.env
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DEVICE=${DEVICE_DNMS}
       - DNMS_BAUDRATE=500000
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -40,10 +41,11 @@ services:
       - /boot/firmware/adsb.env
       - /boot/firmware/dfld.env
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DEVICE=${DEVICE_DFLD}
       - DFLD_BAUDRATE=9600
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -68,10 +70,12 @@ services:
       - /boot/firmware/adsb.env
       - /boot/firmware/dfld.env
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DNMS_I2C_ADDRESS=0x55
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=1.0
+      - RETRY_INTERVAL=10.0
       - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure
@@ -92,8 +96,9 @@ services:
     container_name: bme2mqtt
     entrypoint: python /dfld/bme2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/air
+      - MQTT_TOPIC=dfld/sensors/air
       - READOUT_INTERVAL=60
       - LOG_LEVEL=INFO
     labels:
@@ -153,7 +158,7 @@ services:
       - DFLD_LEGACY=${DFLD_LEGACY}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -166,6 +171,34 @@ services:
       - network
 {% endif %}
 
+{% if osm_station_id is defined and osm_sensors is defined and osm_api_key is defined %}
+  tsdb2osm:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: tsdb2osm
+    entrypoint: python /dfld/tsdb2osm.py
+    environment:
+      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - OSM_STATION_ID=${OSM_STATION_ID}
+      - OSM_SENSORS=${OSM_SENSORS}
+      - OSM_API_KEY=${OSM_API_KEY}
+{% if osm_interval is defined %}
+      - OSM_INTERVAL=${OSM_INTERVAL}
+{% endif %}
+      - TZ=${TZ}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=tsdb2osm
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Push data to openSenseMap
+      - homepage.showStats=true
+    networks:
+      - network
+{% endif %}
+
 {% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0  and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
   udp2mqtt:
     image: dfld_box
@@ -173,9 +206,10 @@ services:
     container_name: udp2mqtt
     entrypoint: python /dfld/udp2mqtt.py
     environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - UDP_LISTEN_PORT=11883
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/noise/spl
+      - MQTT_TOPIC=dfld/sensors/noise/spl
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -201,7 +235,7 @@ services:
       - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=/dfld/sensors/#
+      - MQTT_TOPIC=dfld/sensors/#
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -212,6 +246,38 @@ services:
       - homepage.showStats=true
     networks:
       - network
+
+{% if hw_conf["SSD1306_AVAILABLE"]==1 %}
+  mqtt2display:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: mqtt2display
+    entrypoint: python /dfld/mqtt2display.py
+    environment:
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=dfld/sensors/noise/spl/#
+      - READOUT_INTERVAL=0.2
+      - MQTT_READ_TIMEOUT=2.0
+      - DISPLAY_TIMEOUT=2.0
+      - PROCESS_EMPTY=1
+      - I2C_BUS=1
+      - SSD1306_I2C_ADDR=0x3C
+      - SSD1306_WIDTH=128
+      - SSD1306_HEIGHT=64
+      - TZ=${TZ}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=mqtt2display
+      - homepage.icon=/icons/microphone-voice-icon.svg
+      - homepage.description=Display noise data on SSD1306
+      - homepage.showStats=true
+    networks:
+      - network
+    devices:
+      - ${DEVICE_I2C}
+    privileged: true
+{% endif %}
 
 networks:
     network:
