@@ -22,9 +22,9 @@ services:
     #
     # --------------------------------------------------
     # readsb/decoder parameters:
-      - READSB_LAT=${LAT}
-      - READSB_LON=${LON}
-      - READSB_ALT=${ALT_M}m
+      - READSB_LAT=${STATION_LAT}
+      - READSB_LON=${STATION_LON}
+      - READSB_ALT=${STATION_ALT}m
       - READSB_RX_LOCATION_ACCURACY=2
       - READSB_STATS_RANGE=true
     #
@@ -33,8 +33,8 @@ services:
     # --------------------------------------------------
     # TAR1090 (Map Web Page) parameters:
       - UPDATE_TAR1090=true
-      - TAR1090_DEFAULTCENTERLAT=${LAT}
-      - TAR1090_DEFAULTCENTERLON=${LON}
+      - TAR1090_DEFAULTCENTERLAT=${STATION_LAT}
+      - TAR1090_DEFAULTCENTERLON=${STATION_LON}
       - TAR1090_MESSAGERATEINTITLE=true
       - TAR1090_PAGETITLE=DFLD
       - TAR1090_PLANECOUNTINTITLE=true
@@ -79,7 +79,7 @@ services:
       - POSTGRES_DATABASE=${POSTGRES_DATABASE}
       - POSTGRES_SERVER=${POSTGRES_SERVERNAME}:${POSTGRES_SERVERPORT}
       - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
-      - STATION_POSITION=${LON}:${LAT}:${ALT_M}
+      - STATION_POSITION=${STATION_LON}:${STATION_LAT}:${STATION_ALT}
       - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure

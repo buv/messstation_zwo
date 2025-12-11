@@ -37,10 +37,10 @@ git clone https://github.com/buv/messstation_zwo.git
 cd messstation_zwo
 
 # Anpassungen an Konfiguration vornehmen
-cp inventory.yml.example inventory.yml
+# TODO: falls dfld.yml lokal vorhanden ist, soll das Playbook es nach /boot auf dem Zielhost kopieren
+emacs/vi/vim/nano dfld.yml
 
-emacs/vi/vim/nano inventory.yml
-emacs/vi/vim/nano ansible.cfg
+# 
 
 # Playbook lokal starten und Messstation ZWO installieren.
 # Installationsmode "full" ist für Raspberry Pi, "mini" ist für Pico Zero W
@@ -58,8 +58,7 @@ Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentat
 
 Die Messstation ZWO verwendet zwei zentrale Konfigurationsdateien für Umgebungsvariablen:
 
-- `/boot/firmware/dfld.env` - Allgemeine DFLD-Konfiguration (Standort, Zeitzone, etc.)
-- `/boot/firmware/adsb.env` - ADS-B spezifische Konfiguration
+- `/boot/dfld.yml` - DFLD-Konfiguration im YAML-Format (Standort, Zeitzone, ADS-B, etc.)
 
 #### Ändern der Konfiguration
 
@@ -67,10 +66,7 @@ Die Messstation ZWO verwendet zwei zentrale Konfigurationsdateien für Umgebungs
 
 ```bash
 # DFLD Konfiguration bearbeiten
-sudo nano /boot/firmware/dfld.env
-
-# oder ADS-B Konfiguration bearbeiten
-sudo nano /boot/firmware/adsb.env
+sudo nano /boot/dfld.yml
 ```
 
 **Option 2: Über Windows/PC mit SD-Kartenleser**
@@ -78,15 +74,12 @@ sudo nano /boot/firmware/adsb.env
 1. Raspberry Pi herunterfahren
 2. SD-Karte entnehmen und in einen PC-Kartenleser stecken
 3. Die Boot-Partition wird als Laufwerk angezeigt
-4. Dateien `dfld.env` und/oder `adsb.env` mit einem Texteditor öffnen und bearbeiten
+4. Datei `dfld.yml` mit einem Texteditor öffnen und bearbeiten (YAML-Format)
 5. Änderungen speichern, SD-Karte sicher entfernen und wieder in den Raspberry Pi einsetzen
 6. Raspberry Pi starten
 
-**Gewünschte Variablen ändern** (z.B. LAT, LON, ALT_M, TZ)
+**Gewünschte Variablen ändern** (z.B. LAT, LON, ALT, TZ)
 
 **Automatischer Neustart der Container:**
 
 Die Container werden automatisch über systemd `.path` Units neu gestartet, sobald systemd eine Änderung an den Konfigurationsdateien erkennt. Es ist kein manueller Eingriff notwendig.
-
-
-

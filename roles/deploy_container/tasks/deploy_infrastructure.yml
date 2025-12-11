@@ -14,8 +14,7 @@
     files:
       - "{{ dfld_dir }}/infrastructure-compose.yml"
     env_files:
-      - "/boot/firmware/dfld.env"
-      - "/boot/firmware/adsb.env"
+      - "{{ dfld_dir }}/dfld_user.env"
       - "{{ dfld_dir }}/docker-compose.env"
     state: present
     pull: missing

@@ -3,6 +3,9 @@
 - name: Create environment files for infrastructure services
   ansible.builtin.include_tasks: create_env_files.yml
 
+- name: Generate user environment file from YAML
+  ansible.builtin.include_tasks: generate_user_env.yml
+
 - name: Create dfld network
   ansible.builtin.include_tasks: network.yml
 

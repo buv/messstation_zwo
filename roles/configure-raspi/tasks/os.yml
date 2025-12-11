@@ -15,6 +15,7 @@
       - python3-pip
       - python3-psycopg2
       - netcat-openbsd
+      - yq
     state: present
 
 - name: Get /boot/firmware/cmdline.txt

@@ -21,3 +21,12 @@
     group: "{{ dfld_user }}"
     mode: "0750"
     state: directory
+
+- name: Create a directory for DFLD configuration, if not exists
+  become: true
+  ansible.builtin.file:
+  name: "/boot/{{ dfld_dir }}"
+  owner: "{{ dfld_user }}"
+  group: "{{ dfld_user }}"
+  mode: "0750"
+  state: directory

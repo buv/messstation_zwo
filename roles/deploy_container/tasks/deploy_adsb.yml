@@ -22,8 +22,7 @@
     files:
       - "{{ dfld_dir }}/adsb/docker-compose.yml"
     env_files:
-      - "/boot/firmware/dfld.env"
-      - "/boot/firmware/adsb.env"
+      - "{{ dfld_dir }}/dfld_user.env"
       - "{{ dfld_dir }}/docker-compose.env"
     state: present
     pull: missing
@@ -41,7 +40,8 @@
       [Service]
       Type=oneshot
       WorkingDirectory={{ dfld_dir }}/adsb
-      ExecStart=/usr/bin/docker compose -f {{ dfld_dir }}/adsb/docker-compose.yml --env-file /boot/firmware/adsb.env --env-file /boot/firmware/dfld.env --env-file {{ dfld_dir }}/docker-compose.env up -d --force-recreate
+      ExecStartPre=/bin/bash -c 'yq e ". | to_entries | .[] | \"\\(.key | upcase)=\\(.value)\"" {{ conf_dir }}/dfld.yml > {{ dfld_dir }}/dfld_user.env'
+      ExecStart=/usr/bin/docker compose -f {{ dfld_dir }}/adsb/docker-compose.yml --env-file {{ dfld_dir }}/dfld_user.env --env-file {{ dfld_dir }}/docker-compose.env up -d --force-recreate
 
       [Install]
       WantedBy=multi-user.target
@@ -58,8 +58,7 @@
 
       [Path]
       PathChanged={{ dfld_dir }}/docker-compose.env
-      PathChanged=/boot/firmware/adsb.env
-      PathChanged=/boot/firmware/dfld.env
+      PathChanged={{ conf_dir }}/dfld.yml
 
       [Install]
       WantedBy=multi-user.target

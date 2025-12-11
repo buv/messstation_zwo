@@ -7,12 +7,3 @@
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     mode: '0644'
-
-- name: Write user editable compose environment file for core infrastructure
-  ansible.builtin.template:
-    src: "templates/container/{{ item }}.env.j2"
-    dest: "/boot/firmware/{{ item }}.env"
-    force: false
-  loop:
-    - dfld
-    - adsb
