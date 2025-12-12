@@ -40,7 +40,7 @@
       [Service]
       Type=oneshot
       WorkingDirectory={{ dfld_dir }}/adsb
-      ExecStartPre=/bin/bash -c 'yq e ". | to_entries | .[] | \"\\(.key | upcase)=\\(.value)\"" {{ conf_dir }}/dfld.yml > {{ dfld_dir }}/dfld_user.env'
+      ExecStartPre=/bin/bash -c 'yq -r ". | to_entries | .[] | \"\\(.key | ascii_upcase)=\\(.value)\"" {{ conf_dir }}/dfld.yml > {{ dfld_dir }}/dfld_user.env'
       ExecStart=/usr/bin/docker compose -f {{ dfld_dir }}/adsb/docker-compose.yml --env-file {{ dfld_dir }}/dfld_user.env --env-file {{ dfld_dir }}/docker-compose.env up -d --force-recreate
 
       [Install]

@@ -25,7 +25,7 @@ all:
     dfld_group: "dfld"
 
     dfld_dir: "/opt/dfld"
-    conf_dir: "/boot"
+    conf_dir: "/boot/firmware"
 
     portainer_username: "{{ dfld_user }}"
     portainer_password: "{{ dfld_user }}{{ dfld_user }}{{ dfld_user }}"
