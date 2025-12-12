@@ -37,10 +37,8 @@ git clone https://github.com/buv/messstation_zwo.git
 cd messstation_zwo
 
 # Anpassungen an Konfiguration vornehmen
-# TODO: falls dfld.yml lokal vorhanden ist, soll das Playbook es nach /boot auf dem Zielhost kopieren
 emacs/vi/vim/nano dfld.yml
-
-# 
+# dfld.yml nach /boot auf Remote Raspi kopieren  
 
 # Playbook lokal starten und Messstation ZWO installieren.
 # Installationsmode "full" ist für Raspberry Pi, "mini" ist für Pico Zero W

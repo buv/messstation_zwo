@@ -8,7 +8,7 @@
 
 - name: Generate dfld_user.env from dfld.yml
   ansible.builtin.shell: |
-    yq e '. | to_entries | .[] | "\(.key | upcase)=\(.value)"' {{ conf_dir }}/dfld.yml > {{ dfld_dir }}/dfld_user.env
+    yq -r '. | to_entries | .[] | "\(.key | ascii_upcase)=\(.value)"' {{ conf_dir }}/dfld.yml > {{ dfld_dir }}/dfld_user.env
   args:
     executable: /bin/bash
   when: dfld_yml_stat.stat.exists

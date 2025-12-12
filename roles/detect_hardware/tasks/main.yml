@@ -24,11 +24,9 @@
           DNMS_I2C_AVAILABLE: 0
           ADSB_AVAILABLE: 0
 
-- name: Include
-
 - name: Include station configuration
   ansible.builtin.include_vars:
-    file: "{{ conf_dir }}/dfld.yml
+    file: "{{ conf_dir }}/dfld.yml"
     name: dfld_config
 
 - name: Flatten dfld_config into top-level facts
