@@ -1,5 +1,8 @@
 ---
 
 docker_images:
-  - dfld_box
-  - postgis
+  mini:
+    - dfld_box
+  full:
+    - dfld_box
+    - postgis

@@ -1,0 +1,10 @@
+---
+
+infrastructure_containers:
+  mini:
+    - mqtt
+  full:
+    - telegraf
+    - homepage
+    - mqtt
+    - pgadmin

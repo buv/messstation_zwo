@@ -20,11 +20,12 @@ all:
     dfld_liveview: ""
     dfld_legacy: ""
     
-
+    
     dfld_user: "dfld"
     dfld_group: "dfld"
 
     dfld_dir: "/opt/dfld"
+    conf_dir: "/boot"
 
     portainer_username: "{{ dfld_user }}"
     portainer_password: "{{ dfld_user }}{{ dfld_user }}{{ dfld_user }}"

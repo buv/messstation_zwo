@@ -1,0 +1,12 @@
+---
+
+- name: Create dfld docker network
+  community.docker.docker_network:
+    name: dfld_network
+    driver: bridge
+    driver_options:
+      com.docker.network.enable_ipv6: "false"
+    ipam_config:
+      - subnet: 172.21.0.0/24
+        gateway: 172.21.0.1
+    state: present

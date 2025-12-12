@@ -31,10 +31,10 @@ while [[ $# -gt 0 ]]; do
       echo "Unknown option: $1" >&2; usage; exit 1;;
     *)
       # first non-option becomes HOST
-      if [[ "$HOST" == "localhost" ]]; then
+      if [[ "${HOST}" == "localhost" ]]; then
         HOST="$1"
       else
-        echo "Error: multiple positional arguments: $HOST and $1" >&2; usage; exit 1
+        echo "Error: multiple positional arguments: ${HOST} and $1" >&2; usage; exit 1
       fi
       ;;
   esac
@@ -42,16 +42,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 # validate mode
-if [[ "$MODE" != "mini" && "$MODE" != "full" ]]; then
-  echo "Error: invalid mode '$MODE'. Allowed: mini, full" >&2; usage; exit 1
+if [[ "${MODE}" != "mini" && "${MODE}" != "full" ]]; then
+  echo "Error: invalid mode '${MODE}'. Allowed: mini, full" >&2; usage; exit 1
 fi
 
-if [[ "$HOST" == "localhost" ]]; then
+if [[ "${HOST}" == "localhost" ]]; then
   HOST_ARG="--connection=local -i 127.0.0.1,"
 else
-  HOST_ARG="-i $HOST,"
+  HOST_ARG="-i ${HOST},"
 fi
-echo "Installing in $MODE mode on host: $HOST"
+echo "Installing in ${MODE} mode on host: ${HOST}"
 
 # check if role "geerlingguy.docker" is installed
 if ! ansible-galaxy list --roles-path roles 2> /dev/null | grep -q 'geerlingguy.docker'; then
@@ -59,10 +59,4 @@ if ! ansible-galaxy list --roles-path roles 2> /dev/null | grep -q 'geerlingguy.
   ansible-galaxy install -p roles -r requirements.yml
 fi  
 
-if [[ "$MODE" == "mini" ]]; then
-  ansible-playbook ./mini.yml $HOST_ARG -i inventory.yml
-elif [[ "$MODE" == "full" ]]; then
-  ansible-playbook ./full.yml $HOST_ARG -i inventory.yml
-else
-  echo "Error: unknown mode '$MODE'" >&2; exit 1
-fi
+ansible-playbook ./install_messstation.yml --extra-vars deployment_mode=${MODE} ${HOST_ARG} -i inventory.yml --ssh-common-args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

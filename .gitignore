@@ -1,6 +1,6 @@
 .vscode
 inventory_*
-inventory.yml
+dfld.yml
 ansible.cfg
 roles/geerlingguy.*
 *.retry
