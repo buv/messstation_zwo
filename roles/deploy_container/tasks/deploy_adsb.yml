@@ -8,6 +8,21 @@
     state: directory
     mode: '0755'
 
+- name: Copy env file to default location
+  ansible.builtin.template:
+    src: "templates/container/docker-compose.env.j2"
+    dest: "{{ dfld_dir }}/adsb/docker-compose.env"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+
+- name: Generate adsb/dfld_user.env from dfld.yml
+  ansible.builtin.command:
+    cmd: /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/adsb/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}
+  register: generate_adsb_result
+  changed_when: generate_adsb_result.rc == 0
+  failed_when: generate_adsb_result.rc == 2
+
 - name: Copy adsb compose file
   ansible.builtin.template:
     src: "templates/container/adsb-compose.yml.j2"
@@ -22,26 +37,32 @@
     files:
       - "{{ dfld_dir }}/adsb/docker-compose.yml"
     env_files:
-      - "{{ dfld_dir }}/dfld_user.env"
-      - "{{ dfld_dir }}/docker-compose.env"
+      - "{{ dfld_dir }}/adsb/dfld_user.env"
+      - "{{ dfld_dir }}/adsb/docker-compose.env"
     state: present
     pull: missing
     wait: true
 
-- name: Create reload file for adsb
+- name: Create boot service for adsb
   ansible.builtin.copy:
     dest: /etc/systemd/system/dfld-adsb-reload.service
     content: |
       [Unit]
-      Description=Reload DFLD adsb Stack
-      After=docker.service
+      Description=Reload DFLD ADSB Stack if config changed
+      After=docker.service network-online.target
       Requires=docker.service
+      Wants=network-online.target
 
       [Service]
       Type=oneshot
       WorkingDirectory={{ dfld_dir }}/adsb
-      ExecStartPre=/bin/bash -c 'yq -r ". | to_entries | .[] | \"\\(.key | ascii_upcase)=\\(.value)\"" {{ conf_dir }}/dfld.yml > {{ dfld_dir }}/dfld_user.env'
-      ExecStart=/usr/bin/docker compose -f {{ dfld_dir }}/adsb/docker-compose.yml --env-file {{ dfld_dir }}/dfld_user.env --env-file {{ dfld_dir }}/docker-compose.env up -d --force-recreate
+      ExecStart=/bin/bash -c '\
+        if /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/adsb/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}; then \
+          echo "Environment file was updated, reloading containers..."; \
+          /usr/bin/docker compose -f {{ dfld_dir }}/adsb/docker-compose.yml --env-file {{ dfld_dir }}/adsb/dfld_user.env --env-file {{ dfld_dir }}/adsb/docker-compose.env up -d --force-recreate; \
+        else \
+          echo "Environment file is up to date, no reload needed"; \
+        fi'
 
       [Install]
       WantedBy=multi-user.target
@@ -49,26 +70,8 @@
     group: root
     mode: '0644'
 
-- name: Create systemd.path file for adsb reload on file change
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/dfld-adsb-reload.path
-    content: |
-      [Unit]
-      Description=Path to trigger DFLD adsb Stack reload
-
-      [Path]
-      PathChanged={{ dfld_dir }}/docker-compose.env
-      PathChanged={{ conf_dir }}/dfld.yml
-
-      [Install]
-      WantedBy=multi-user.target
-    owner: root
-    group: root
-    mode: '0644'
-
-- name: Enable and start adsb reload timer
+- name: Enable adsb boot service
   ansible.builtin.systemd:
-    name: dfld-adsb-reload.path
+    name: dfld-adsb-reload.service
     enabled: true
-    state: started
     daemon_reload: true

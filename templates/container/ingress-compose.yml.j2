@@ -5,8 +5,6 @@ services:
     restart: unless-stopped
     container_name: dnms2mqtt
     entrypoint: python /dfld/dnms2mqtt.py
-    env_file:
-      - {{ dfld_dir }}/dfld_user.env
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DEVICE=${DEVICE_DNMS}
@@ -36,8 +34,6 @@ services:
     restart: unless-stopped
     container_name: dfld2mqtt
     entrypoint: python /dfld/dfld2mqtt.py
-    env_file:
-      - {{ dfld_dir }}/dfld_user.env
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DEVICE=${DEVICE_DFLD}
@@ -64,8 +60,6 @@ services:
     restart: unless-stopped
     container_name: dnmsiic2mqtt
     entrypoint: python /dfld/dnmsiic2mqtt.py
-    env_file:
-      - {{ dfld_dir }}/dfld_user.env
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DNMS_I2C_ADDRESS=0x55
@@ -116,8 +110,6 @@ services:
     restart: unless-stopped
     container_name: tsdb2ftp
     entrypoint: python /dfld/tsdb2ftp.py
-    env_file:
-      - {{ dfld_dir }}/dfld_user.env
     environment:
       - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
       - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
@@ -144,8 +136,6 @@ services:
     restart: unless-stopped
     container_name: mqtt2liveview
     entrypoint: python /dfld/mqtt2liveview.py
-    env_file:
-      - {{ dfld_dir }}/dfld_user.env
     environment:
       - DFLD_REGION=${DFLD_REGION}
       - DFLD_STATION=${DFLD_STATION}

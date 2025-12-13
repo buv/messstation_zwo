@@ -1,21 +1,36 @@
 ---
 
+- name: Create adsb folder
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/infrastructure"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy env file to default location
+  ansible.builtin.template:
+    src: "templates/container/docker-compose.env.j2"
+    dest: "{{ dfld_dir }}/infrastructure/docker-compose.env"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+
 - name: Create infrastructure compose file
   ansible.builtin.template:
     src: "templates/container/infrastructure-compose.yml.j2"
-    dest: "{{ dfld_dir }}/infrastructure-compose.yml"
+    dest: "{{ dfld_dir }}/infrastructure/docker-compose.yml"
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     mode: '0644'
 
 - name: Start infrastructure stack with docker compose
   community.docker.docker_compose_v2:
-    project_src: "{{ dfld_dir }}"
+    project_src: "{{ dfld_dir }}/infrastructure"
     files:
-      - "{{ dfld_dir }}/infrastructure-compose.yml"
+      - "{{ dfld_dir }}/infrastructure/docker-compose.yml"
     env_files:
-      - "{{ dfld_dir }}/dfld_user.env"
-      - "{{ dfld_dir }}/docker-compose.env"
+      - "{{ dfld_dir }}/infrastructure/docker-compose.env"
     state: present
     pull: missing
     wait: true

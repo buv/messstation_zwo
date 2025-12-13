@@ -2,15 +2,27 @@
 
 Ansible Playbook zum Aufsetzen einer [DFLD](https://www.dfld.de/) Messstation ZWO auf einem Raspberry Pi.
 
-## Voraussetzungen
+## Ausbaustufen
+### Version Mini
+Die Version Mini dient dem Erfassen der A-gewichteten Schalldruckpegel und der Weiterleitung an verschiedene Plattformen. Derzeit werden unterstützt 
+- [DFLD](https://www.dfld.de/) (Liveview und Historie)
+- [openSenseMap](https://opensensemap.org/)
+- benutzerdefinierter, offener MQTT-Server
+
+#### Voraussetzungen
+- Ein Raspberry Pi Zero 2W oder mehr
+- Ein Schallpegelsensor, entweder AK-Modul Bus oder vorzugsweise [DNMS](https://github.com/hbitter/DNMS), der über USB mit 1Hz dBA-gewichtete Schallpegeldaten liefert
+
+### Version Full
+Die Version Full enthält alle Funktionen der Version Mini und unterstützt zusätzlich noch einen lokal angebundenen USB ADS-B Empfänger sowie ein Grafana-Dashboard. Der ADS-B Datenstrom wird verwendet um lokal einen Überflug zu erkennen und ihn im Grafana-Dashboard des Schalldruckpegels zu markieren. Zu jedem dieser erkannten Überflüge sind lokal Details des Flugzeugs (Kennzeichen, Typ) und ein Link bei adsbexchange.com auf das Exemplar dargestellt.
+
+#### Voraussetzungen
 - Ein Raspberry Pi mit 2GB RAM oder mehr
-- Ein Schallpegelsensor, entweder AK-Modul Bus oder DNMS, der über USB mit 1Hz dBA-gewichtete Schallpegeldaten liefert
+- Ein Schallpegelsensor, entweder AK-Modul Bus oder vorzugsweise [DNMS](https://github.com/hbitter/DNMS), der über USB mit 1Hz dBA-gewichtete Schallpegeldaten liefert
 - Ein ADS-B Empfänger, der die Flugzeugdaten über USB bereitstellt
 - BME280 Sensor (optional)
-- ...
 
 ## Installation
-
 - Ein Admin-Account mit sudo-Rechten auf dem Raspberry Pi
 - SSH-Logins freigegeben falls Messstation ZWO auf Remote Raspberry Pi installiert werden soll.
 - Fingerprint des Remote Raspis in den lokalen known_keys. Alternative kann `host_key_checking` in  Zeile 5 in der ansible.cfg ausgeschaltet werden.
@@ -36,12 +48,15 @@ git clone https://github.com/buv/messstation_zwo.git
 # In das Repository wechseln
 cd messstation_zwo
 
-# Anpassungen an Konfiguration vornehmen
+# Anpassungen an Konfiguration vornehmen:
+# dazu kann nach dem initialen Flashen der SD-Karte die Konfigurationsdatei dfld.yml 
+# im obersten Verzeichnis der Partition "bootfs" abgelegt werden oder lokal hier im 
+# Repository Verzeichnis angelegt und ggf. angepasst werden.
 emacs/vi/vim/nano dfld.yml
 # dfld.yml nach /boot auf Remote Raspi kopieren  
 
 # Playbook lokal starten und Messstation ZWO installieren.
-# Installationsmode "full" ist für Raspberry Pi, "mini" ist für Pico Zero W
+# Installationsmode "full" ist für Raspberry Pi, "mini" ist für Pico Zero 2W
 ./install_messstation.sh --mode [full|mini]
 
 # alternativ Playbook remote ausführen.
