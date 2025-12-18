@@ -1,0 +1,23 @@
+---
+# Generate dfld_user.env files from dfld.yml before first container deployment
+
+- name: Check if dfld.yml exists
+  ansible.builtin.stat:
+    path: "{{ conf_dir }}/dfld.yml"
+  register: dfld_yml_stat
+
+- name: Generate ingress/dfld_user.env from dfld.yml using script
+  ansible.builtin.command:
+    cmd: /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/ingress/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}
+  register: generate_ingress_result
+  when: dfld_yml_stat.stat.exists
+  changed_when: generate_ingress_result.rc == 0
+  failed_when: generate_ingress_result.rc == 2
+
+- name: Generate adsb/dfld_user.env from dfld.yml using script
+  ansible.builtin.command:
+    cmd: /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/adsb/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}
+  register: generate_adsb_result
+  when: dfld_yml_stat.stat.exists and hw_conf["ADSB_AVAILABLE"] == 1
+  changed_when: generate_adsb_result.rc == 0
+  failed_when: generate_adsb_result.rc == 2

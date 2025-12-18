@@ -17,7 +17,47 @@
       ansible.builtin.set_fact:
         hw_conf:
           BME280_AVAILABLE: 0
+          SSD1306_AVAILABLE: 0
+          
           DFLD_DNMS_AVAILABLE: 0
           DFLD_LEGACY_AVAILABLE: 0
           DNMS_I2C_AVAILABLE: 0
           ADSB_AVAILABLE: 0
+
+- name: Check if dfld.yml exists on target system
+  ansible.builtin.stat:
+    path: "{{ conf_dir }}/dfld.yml"
+  register: remote_dfld_yml
+
+- name: Check if dfld.yml exists locally
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/dfld.yml"
+  register: local_dfld_yml
+  delegate_to: localhost
+  become: false
+  when: not remote_dfld_yml.stat.exists
+
+- name: Copy local dfld.yml to target system
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/dfld.yml"
+    dest: "{{ conf_dir }}/dfld.yml"
+    owner: root
+    group: root
+    mode: '0644'
+  when: 
+    - not remote_dfld_yml.stat.exists
+    - local_dfld_yml.stat.exists
+
+- name: Read station configuration from target system
+  ansible.builtin.slurp:
+    src: "{{ conf_dir }}/dfld.yml"
+  register: dfld_config_file
+
+- name: Parse dfld.yml content
+  ansible.builtin.set_fact:
+    dfld_config: "{{ dfld_config_file.content | b64decode | from_yaml }}"
+
+- name: Flatten dfld_config into top-level facts
+  ansible.builtin.set_fact:
+    "{{ item.key }}": "{{ item.value }}"
+  loop: "{{ dfld_config | dict2items }}"

@@ -5,21 +5,32 @@
   gather_facts: true
   become: true
 
+  vars:
+    deployment_mode: mini
+
+  pre_tasks:
+    - name: Check deployment mode
+      ansible.builtin.assert:
+        that:
+          - deployment_mode in ['mini', 'full']
+        fail_msg: "Invalid deployment_mode '{{ deployment_mode }}'. Allowed values are 'mini' and 'full'."
+        success_msg: "Deployment mode '{{ deployment_mode }}' is valid."
+
   roles:
     - role: configure-raspi
     - role: geerlingguy.docker
       vars:
         docker_users:
           - "{{ dfld_user }}"
-    - role: configure-raspi
     - role: build-images
     - role: portainer
+      when: deployment_mode == "full"
     - role: detect_hardware
-    - role: deploy_infrastructure_stack
+    - role: deploy_container
     - role: configure-postgres
+      when: deployment_mode == "full"
     - role: configure-grafana
-    - role: deploy_ingress_stack
-
+      when: deployment_mode == "full"
 
   post_tasks:
     - name: Print error message in case of hardware detection failure
@@ -33,8 +44,10 @@
           - '------------------------------------------------------------------------------------------------------'
           - ''
 
-    - name: Ready message
-      when: not detect_hw_response.failed
+    - name: Ready message full installation
+      when: 
+        - not detect_hw_response.failed
+        - deployment_mode == "full"
       ansible.builtin.debug:
         msg:
           - ''
@@ -62,6 +75,32 @@
           - '  DNMS_I2C detect:         {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("true", "false") }}'
           - '  BME280 device detect:    {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("true", "false") }}'
           - '  SSD1306 display detect:  {{ (hw_conf.SSD1306_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+
+    - name: Ready message mini installation
+      when: 
+        - not detect_hw_response.failed
+        - deployment_mode == "mini"
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
+          - 'DFLD Messstation ZWO is{{ (detect_hw_response.failed) | ternary(" not ", " ") }}ready.'
+          - ''
+          - 'You can access the influxdb with: User: {{ influxdb_username }} / Password: {{ influxdb_password }}'
+          - ''
+          - '{{ (detect_hw_response.failed) | ternary("You may look around. But nothing will be measured.", "Happy measuring!") }}'
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - 'Hardware setup:'
+          - ''
+          - 'ADS-B Reciever detect: {{ (hw_conf.ADSB_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DFLD DNMS detect:      {{ (hw_conf.DFLD_DNMS_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DFLD_LEGACY detect:    {{ (hw_conf.DFLD_LEGACY_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'DNMS_I2C detect:       {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("true", "false") }}'
+          - 'BME280 device detect:  {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("true", "false") }}'
           - '------------------------------------------------------------------------------------------------------'
           - ''
 

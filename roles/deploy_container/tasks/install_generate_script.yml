@@ -1,0 +1,10 @@
+---
+# Install the central dfld-generate-env.sh script
+
+- name: Copy dfld-generate-env.sh script to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/dfld-generate-env.sh"
+    dest: /usr/local/bin/dfld-generate-env.sh
+    owner: root
+    group: root
+    mode: '0755'
