@@ -96,17 +96,19 @@
           - '------------------------------------------------------------------------------------------------------'
           - 'Hardware setup:'
           - ''
-          - 'ADS-B Reciever detect: {{ (hw_conf.ADSB_AVAILABLE == 1) | ternary("true", "false") }}'
-          - 'DFLD DNMS detect:      {{ (hw_conf.DFLD_DNMS_AVAILABLE == 1) | ternary("true", "false") }}'
-          - 'DFLD_LEGACY detect:    {{ (hw_conf.DFLD_LEGACY_AVAILABLE == 1) | ternary("true", "false") }}'
-          - 'DNMS_I2C detect:       {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("true", "false") }}'
-          - 'BME280 sensor detect:  {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("true", "false") }}'
-          - 'SSD1306 display detect: {{ (hw_conf.SSD1306_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '  ADS-B Reciever detect:   {{ (hw_conf.ADSB_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '  DFLD DNMS detect:        {{ (hw_conf.DFLD_DNMS_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '  DFLD_LEGACY detect:      {{ (hw_conf.DFLD_LEGACY_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '  DNMS_I2C detect:         {{ (hw_conf.DNMS_I2C_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '  BME280 sensor detect:    {{ (hw_conf.BME280_AVAILABLE == 1) | ternary("true", "false") }}'
+          - '  SSD1306 display detect:  {{ (hw_conf.SSD1306_AVAILABLE == 1) | ternary("true", "false") }}'
           - '------------------------------------------------------------------------------------------------------'
           - ''
 
     - name: Check if reboot is required
-      when: check_reboot.stat.exists
+      when: 
+        - check_reboot.stat.exists
+        - ansible_connection != 'local'
       block:
         - name: Inform about reboot
           ansible.builtin.pause:
@@ -119,3 +121,16 @@
               Reboot is required.
               Your System will reboot now.
             reboot_timeout: 120
+
+    - name: Reboot required message for local installation
+      when:
+        - check_reboot.stat.exists
+        - ansible_connection == 'local'
+      ansible.builtin.debug:
+        msg:
+          - ''
+          - '------------------------------------------------------------------------------------------------------'
+          - 'REBOOT REQUIRED!'
+          - 'Please reboot the system manually: sudo reboot'
+          - '------------------------------------------------------------------------------------------------------'
+          - ''
