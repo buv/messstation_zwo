@@ -232,6 +232,31 @@ services:
     networks:
       - network
 
+{% if mqtt_bridged_broker is defined and mqtt_bridged_broker | length > 0 and mqtt_bridged_rename is defined and mqtt_bridged_rename | length > 0 %}
+  mqtt2mqtt:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: mqtt2mqtt
+    entrypoint: python /dfld/mqtt2mqtt.py
+    environment:
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_BRIDGED_BROKER=${MQTT_BRIDGED_BROKER}
+      - MQTT_BRIDGED_RENAME=${MQTT_BRIDGED_RENAME}
+      - MQTT_BRIDGED_TLS=${MQTT_BRIDGED_TLS}
+      - MQTT_CLIENT_ID=dfld-${DFLD_REGION}-${DFLD_STATION}
+      - LOG_LEVEL=INFO
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=mqtt2mqtt
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Bridge to remote MQTT broker
+      - homepage.showStats=true
+    networks:
+      - network
+{% endif %}
+
 {% if hw_conf["SSD1306_AVAILABLE"]==1 %}
   mqtt2display:
     image: dfld_box
