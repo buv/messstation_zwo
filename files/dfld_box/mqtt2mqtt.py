@@ -103,15 +103,41 @@ remote_client.reconnect_delay_set(min_delay=1, max_delay=30)
 # TLS configuration (matching mosquitto bridge)
 if USE_TLS:
     try:
-        remote_client.tls_set(
-            ca_certs='/etc/ssl/certs/ca-certificates.crt',
-            cert_reqs=ssl.CERT_REQUIRED,
-            tls_version=ssl.PROTOCOL_TLSv1_2
-        )
-        remote_client.tls_insecure_set(False)
-        logging.info('TLS enabled with certificate verification')
+        ca_cert = os.getenv('MQTT_TLS_CA_CERT', '/etc/ssl/certs/ca-certificates.crt')
+        client_cert = os.getenv('MQTT_TLS_CLIENT_CERT', '')
+        client_key = os.getenv('MQTT_TLS_CLIENT_KEY', '')
+        insecure = os.getenv('MQTT_TLS_INSECURE', 'false').lower() in ['true', 'yes', '1']
+        
+        logging.info(f'TLS Configuration:')
+        logging.info(f'  CA Certificate: {ca_cert}')
+        logging.info(f'  Client Certificate: {client_cert or "None"}')
+        logging.info(f'  Client Key: {client_key or "None"}')
+        logging.info(f'  Insecure Mode: {insecure}')
+        
+        # Client certificates are optional (for mutual TLS)
+        if client_cert and client_key:
+            remote_client.tls_set(
+                ca_certs=ca_cert,
+                certfile=client_cert,
+                keyfile=client_key,
+                cert_reqs=ssl.CERT_REQUIRED,
+                tls_version=ssl.PROTOCOL_TLS
+            )
+        else:
+            remote_client.tls_set(
+                ca_certs=ca_cert,
+                cert_reqs=ssl.CERT_REQUIRED,
+                tls_version=ssl.PROTOCOL_TLS
+            )
+        
+        # Disable hostname verification for self-signed certificates if needed
+        remote_client.tls_insecure_set(insecure)
+        if insecure:
+            logging.warning('TLS hostname verification DISABLED - use only for testing!')
     except Exception as e:
         logging.error(f'Failed to configure TLS: {e}')
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 remote_connected = False
@@ -119,8 +145,9 @@ dropped_messages = 0
 forwarded_messages = 0
 last_stats_log = time.time()
 
-def on_remote_connect(cli, userdata, flags, rc, properties=None):
+def on_remote_connect(cli, userdata, flags, reason_code, properties):
     global remote_connected, dropped_messages
+    rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
     remote_connected = (rc == 0)
     if remote_connected:
         logging.info(f'Remote MQTT connected to {remote_ip}:{remote_port} (dropped {dropped_messages} messages while disconnected)')
@@ -137,21 +164,30 @@ def on_remote_connect(cli, userdata, flags, rc, properties=None):
         error_msg = error_messages.get(rc, f'Unknown error code {rc}')
         logging.error(f'Remote MQTT connection failed: {error_msg}')
 
-def on_remote_disconnect(cli, userdata, rc, properties=None):
+def on_remote_disconnect(cli, userdata, disconnect_flags, reason_code, properties):
     global remote_connected, last_dns_lookup
     remote_connected = False
+    rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
     if rc != 0:
         logging.warning(f'Remote MQTT disconnected (rc={rc}), will auto-reconnect')
         # Force DNS refresh on disconnect
         last_dns_lookup = 0
 
 def on_remote_log(cli, userdata, level, buf):
-    logging.debug(f'Remote MQTT log [{level}]: {buf}')
+    # Log all paho messages with appropriate level
+    if level == mqtt.MQTT_LOG_ERR:
+        logging.error(f'MQTT Client: {buf}')
+    elif level == mqtt.MQTT_LOG_WARNING:
+        logging.warning(f'MQTT Client: {buf}')
+    elif level == mqtt.MQTT_LOG_INFO:
+        logging.info(f'MQTT Client: {buf}')
+    else:
+        logging.debug(f'MQTT Client: {buf}')
 
 remote_client.on_connect = on_remote_connect
 remote_client.on_disconnect = on_remote_disconnect
 remote_client.on_log = on_remote_log
-remote_client.enable_logger(logging.getLogger('paho.mqtt.remote'))
+remote_client.enable_logger()
 
 def on_local_message(cli, userdata, msg):
     global dropped_messages, forwarded_messages
@@ -193,7 +229,8 @@ def on_local_message(cli, userdata, msg):
         logging.warning(f'Failed to forward message: {e}')
         dropped_messages += 1
 
-def on_local_connect(cli, userdata, flags, rc, properties=None):
+def on_local_connect(cli, userdata, flags, reason_code, properties):
+    rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
     if rc == 0:
         # Subscribe to all topics under local_prefix (including exact match and subtopics)
         # Pattern: prefix/# matches prefix/a, prefix/a/b, etc.

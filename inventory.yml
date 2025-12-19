@@ -46,6 +46,7 @@ all:
     #
     # ansible part
     #
+    ansible_python_interpreter: /usr/bin/python3
     ansible_sudo_pass: "{{ dfld_user }}"
     ansible_user: "{{ dfld_user }}"
     ansible_ssh_pass: "{{ dfld_user }}"

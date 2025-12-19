@@ -15,3 +15,11 @@
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     mode: '0644'
+
+- name: Create mqtt-certs folder for client certificates
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/mqtt-certs"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    state: directory
+    mode: '0755'
