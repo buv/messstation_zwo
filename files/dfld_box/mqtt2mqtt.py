@@ -29,20 +29,25 @@ if not TOPIC_REWRITE:
     logging.error('MQTT_BRIDGED_RENAME not set, exiting')
     sys.exit(1)
 
-# Parse topic rewrite: "local_prefix remote_prefix"
-# Mosquitto format: "topic # out 1 local_prefix remote_prefix"
-# We only need: "local_prefix remote_prefix"
+# Parse topic rewrites: "local_prefix1 remote_prefix1:local_prefix2 remote_prefix2"
+# Multiple mappings separated by colon
 try:
-    parts = TOPIC_REWRITE.split()
-    if len(parts) != 2:
-        raise ValueError(f'Expected 2 parts, got {len(parts)}')
-    local_prefix, remote_prefix = parts
-    # Remove trailing slashes for consistent matching
-    local_prefix = local_prefix.rstrip('/')
-    remote_prefix = remote_prefix.rstrip('/')
-    logging.info(f'Topic rewrite: "{local_prefix}" -> "{remote_prefix}"')
+    mappings = []
+    for mapping in TOPIC_REWRITE.split(':'):
+        parts = mapping.strip().split()
+        if len(parts) != 2:
+            raise ValueError(f'Expected 2 parts in mapping "{mapping}", got {len(parts)}')
+        local_prefix, remote_prefix = parts
+        # Remove trailing slashes for consistent matching
+        local_prefix = local_prefix.rstrip('/')
+        remote_prefix = remote_prefix.rstrip('/')
+        mappings.append((local_prefix, remote_prefix))
+        logging.info(f'Topic rewrite: "{local_prefix}" -> "{remote_prefix}"')
+    
+    if not mappings:
+        raise ValueError('No mappings found')
 except (ValueError, IndexError) as e:
-    logging.error(f'Invalid MQTT_BRIDGED_RENAME format: "{TOPIC_REWRITE}" (expected: "local_prefix remote_prefix", error: {e})')
+    logging.error(f'Invalid MQTT_BRIDGED_RENAME format: "{TOPIC_REWRITE}" (expected: "local_prefix remote_prefix[:local_prefix2 remote_prefix2...]", error: {e})')
     sys.exit(1)
 
 # Parse remote MQTT
@@ -192,28 +197,27 @@ remote_client.enable_logger()
 def on_local_message(cli, userdata, msg):
     global dropped_messages, forwarded_messages
     
-    # Check if topic starts with local_prefix
-    if not msg.topic.startswith(local_prefix):
-        logging.debug(f'Topic {msg.topic} does not match prefix {local_prefix}, ignoring')
-        return
-    
     if not remote_connected:
         dropped_messages += 1
         logging.debug(f'Remote not connected, dropped message on {msg.topic}')
         return
     
-    # Rewrite topic: replace local_prefix with remote_prefix
-    # Example: dfld/sensors/noise/spl -> sensebox/cindy-s-test/spl
-    if msg.topic == local_prefix:
-        # Exact match, no suffix
-        remote_topic = remote_prefix
-    elif msg.topic.startswith(local_prefix + '/'):
-        # Has suffix after prefix
-        suffix = msg.topic[len(local_prefix) + 1:]  # +1 to skip the '/'
-        remote_topic = f'{remote_prefix}/{suffix}'
-    else:
-        # Should not happen due to startswith check above
-        logging.warning(f'Unexpected topic format: {msg.topic}')
+    # Try to match topic against all mappings
+    remote_topic = None
+    for local_prefix, remote_prefix in mappings:
+        if msg.topic.startswith(local_prefix):
+            # Rewrite topic: replace local_prefix with remote_prefix
+            if msg.topic == local_prefix:
+                # Exact match, no suffix
+                remote_topic = remote_prefix
+            elif msg.topic.startswith(local_prefix + '/'):
+                # Has suffix after prefix
+                suffix = msg.topic[len(local_prefix) + 1:]  # +1 to skip the '/'
+                remote_topic = f'{remote_prefix}/{suffix}'
+            break
+    
+    if not remote_topic:
+        logging.debug(f'Topic {msg.topic} does not match any mapping, ignoring')
         return
     
     try:
@@ -232,11 +236,11 @@ def on_local_message(cli, userdata, msg):
 def on_local_connect(cli, userdata, flags, reason_code, properties):
     rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
     if rc == 0:
-        # Subscribe to all topics under local_prefix (including exact match and subtopics)
-        # Pattern: prefix/# matches prefix/a, prefix/a/b, etc.
-        subscribe_topic = f'{local_prefix}/#'
-        result = cli.subscribe(subscribe_topic, qos=1)
-        logging.info(f'Local MQTT connected, subscribed to "{subscribe_topic}" (result: {result})')
+        # Subscribe to all topics for all mappings
+        for local_prefix, remote_prefix in mappings:
+            subscribe_topic = f'{local_prefix}/#'
+            result = cli.subscribe(subscribe_topic, qos=1)
+            logging.info(f'Local MQTT connected, subscribed to "{subscribe_topic}" (result: {result})')
     else:
         logging.error(f'Local MQTT connection failed (rc={rc})')
 
@@ -254,7 +258,7 @@ try:
     logging.info(f'Attempting connection to remote MQTT at {connect_host}:{remote_port} (TLS: {USE_TLS})...')
     remote_client.connect_async(connect_host, remote_port, keepalive=60)
     remote_client.loop_start()
-    logging.info(f'MQTT bridge running: {local_prefix} -> {remote_prefix}')
+    logging.info(f'MQTT bridge running with {len(mappings)} mapping(s)')
 except Exception as e:
     logging.error(f'Failed to start remote MQTT connection: {e}')
     import traceback

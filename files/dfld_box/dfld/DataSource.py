@@ -8,7 +8,7 @@ class DataSource(abc.ABC):
     def __init__(self):
         self.connected = False
         self.config = os.environ
-        self.source = "unknown"
+        self.metadata = {"device": "unknown"}  # Metadata dictionary to be filled by subclasses
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
@@ -37,7 +37,7 @@ class DataSource(abc.ABC):
 class Bme280DataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
-        self.source = "bme280"
+        self.metadata["device"] = "bme280"
         self.i2c_addr = int(os.getenv('BME280_I2C_ADDR', '0x76'), 16)
         self.bus_num = int(os.getenv('I2C_BUS', '1'))
         self.logger.debug(f"BME280 DataSource config: i2c_addr={hex(self.i2c_addr)}, bus_num={self.bus_num}")
@@ -79,7 +79,7 @@ class Bme280DataSource(DataSource, abc.ABC):
 class DNMSi2cDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
-        self.source = "dnms_i2c"
+        self.metadata["device"] = "dnms_i2c"
         self.i2c_addr = int(self.config.get('DNMS_I2C_ADDR', '0x55'), 16)
         self.bus_num = int(self.config.get('I2C_BUS', '1'))
         self.microphone = int(os.getenv('DNMS_MICROPHONE_TYPE', '28'))
@@ -112,6 +112,7 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
 
             self.logger.info("DNMS i2c sensor initialized.")
             self.connected = True
+            self.metadata["dnms_firmware"] = version
         except Exception as e:
             self.logger.error(f"Failed to initialize DNMS i2c sensor: {e}")
             self.connected = False
@@ -181,7 +182,7 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
 class AkModulDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
-        self.source = "ak_modul"
+        self.metadata["device"] = "ak_modul"
         self.device = os.getenv('AK_MODUL_DEVICE', '/dev/ttyUSB0')
         self.baudrate = int(os.getenv('AK_MODUL_BAUDRATE', '9600'))
         self.logger.debug(f"AK-Modul DataSource config: device={self.device}, baudrate={self.baudrate}")
@@ -225,7 +226,7 @@ class DNMSDataSource(DataSource, abc.ABC):
 
     def __init__(self):
         super().__init__()
-        self.source = "dnms_serial"        
+        self.metadata["device"] = "dnms_serial"
         config = os.environ
         self.device = config.get('DNMS_DEVICE', '/dev/ttyDNMS')
         self.logger.debug(f"DNMS DataSource config: device={self.device}")
@@ -276,7 +277,7 @@ class DNMSDataSource(DataSource, abc.ABC):
 class UdpDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
-        self.source = "udp"
+        self.metadata["device"] = "udp"
         self.udp_host = os.getenv('UDP_LISTEN_IP', '0.0.0.0')
         self.udp_port = int(os.getenv('UDP_LISTEN_PORT', '11883'))
         self.logger.debug(f"UDP DataSource config: udp_ip={self.udp_host}, udp_port={self.udp_port}")
@@ -319,7 +320,7 @@ class UdpDataSource(DataSource, abc.ABC):
 class MqttDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
-        self.source = "mqtt"
+        self.metadata["device"] = "mqtt"
         self.mqtt_server = os.getenv('MQTT_SERVER', 'mqtt:1883')
         self.topic = os.getenv('MQTT_TOPIC', 'dfld/sensors/#')
         self.qos = int(os.getenv('MQTT_QOS', 0))

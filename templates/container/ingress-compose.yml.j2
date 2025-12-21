@@ -10,7 +10,8 @@ services:
       - DEVICE=${DEVICE_DNMS}
       - DNMS_BAUDRATE=500000
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl
+      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
+      - MQTT_META_TOPIC=dfld/metadata/sensors
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -39,7 +40,8 @@ services:
       - DEVICE=${DEVICE_DFLD}
       - DFLD_BAUDRATE=9600
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl
+      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
+      - MQTT_META_TOPIC=dfld/metadata/sensors
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -64,7 +66,8 @@ services:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - DNMS_I2C_ADDRESS=0x55
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl
+      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
+      - MQTT_META_TOPIC=dfld/metadata/sensors
       - READOUT_INTERVAL=1.0
       - RETRY_INTERVAL=10.0
       - LOG_LEVEL=INFO
@@ -89,7 +92,8 @@ services:
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/air
+      - MQTT_DATA_TOPIC=dfld/sensors/air
+      - MQTT_META_TOPIC=dfld/metadata/sensors
       - READOUT_INTERVAL=60
       - LOG_LEVEL=INFO
     labels:
@@ -194,7 +198,8 @@ services:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - UDP_LISTEN_PORT=11883
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl
+      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
+      - MQTT_META_TOPIC=dfld/metadata/sensors
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
@@ -208,6 +213,29 @@ services:
     networks:
       - network
 {% endif %}
+
+  system2mqtt:
+    image: dfld_box
+    restart: "no"
+    container_name: system2mqtt
+    entrypoint: python /dfld/system2mqtt.py
+    environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_META_TOPIC=dfld/metadata/system
+      - STARTUP_DELAY=30
+      - STATION_LAT=${STATION_LAT:-}
+      - STATION_LON=${STATION_LON:-}
+      - STATION_ALT=${STATION_ALT:-}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=system2mqtt
+      - homepage.icon=/icons/processor-icon.svg
+      - homepage.description=Publish system metadata once
+      - homepage.showStats=true
+    networks:
+      - network
 
   mqtt2tsdb:
     image: dfld_box

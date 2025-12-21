@@ -16,6 +16,7 @@ class EventLoop(object):
         self.process_empty = float(os.getenv('PROCESS_EMPTY', 0))
         self.dfld_station_id = os.getenv('DFLD_STATION_ID', 'default-station')
         self.running = False
+        self.metadata_sent = False
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
@@ -33,7 +34,8 @@ class EventLoop(object):
 
     def process(self, data: dict, sink: DataSink):
         if (self.process_empty or data) and isinstance(data, dict):
-            sink.write(json.dumps({"device": self.data_source.source, "station": self.dfld_station_id} | data))
+            # Write data without metadata
+            sink.write(json.dumps({"station": self.dfld_station_id} | data))
         else:
             self.logger.warning('No valid data to process')
 
@@ -56,6 +58,12 @@ class EventLoop(object):
                         self.logger.error('Failed to connect to data sink. Retrying in {} seconds...'.format(self.retry_interval))
                         time.sleep(self.retry_interval)
                         continue
+
+                # Send metadata once after both source and sink are connected
+                if not self.metadata_sent:
+                    self.data_sink.write_meta(self.data_source.metadata)
+                    self.logger.info(f"Sent metadata with {len(self.data_source.metadata)} keys")
+                    self.metadata_sent = True
 
                 start_time = time.time()
                 self.process(self.data_source.read(), self.data_sink)

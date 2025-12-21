@@ -52,12 +52,16 @@ class MqttDataSink(DataSink, abc.ABC):
         super().__init__()
         self.client = None
         self.mqtt_server = self.config.get('MQTT_SERVER', 'mqtt:1883')
-        self.topic = self.config.get('MQTT_TOPIC', 'dfld/default')
+        self.data_topic = self.config.get('MQTT_DATA_TOPIC', 'dfld/default')
+        self.meta_topic = self.config.get('MQTT_META_TOPIC', 'dfld/metadata/sensors')
         self.client_id = self.config.get('MQTT_CLIENT_ID', sys.argv[0].split('/')[-1].replace('.py',''))
-        self.logger.debug(f"MQTT DataSink config: mqtt_server={self.mqtt_server}, topic={self.topic}, client_id={self.client_id}")
+        self.logger.debug(f"MQTT DataSink config: mqtt_server={self.mqtt_server}, data_topic={self.data_topic}, meta_topic={self.meta_topic}, client_id={self.client_id}")
 
     def set_channel(self, topic: str):
-        self.topic = topic
+        self.data_topic = topic
+
+    def set_meta_channel(self, topic: str):
+        self.meta_topic = topic
 
     def connect(self):
         import paho.mqtt.client as mqtt
@@ -85,10 +89,46 @@ class MqttDataSink(DataSink, abc.ABC):
             self.logger.error("Not connected to MQTT broker.")
             return
         try:
-            self.client.publish(self.topic, line)
-            self.logger.debug(f"Published data to topic {self.topic}: {line}")
+            self.client.publish(self.data_topic, line)
+            self.logger.debug(f"Published data to topic {self.data_topic}: {line}")
         except Exception as e:
             self.logger.error(f"Failed to publish data: {e}")
+
+    def write_meta(self, metadata_dict: dict):
+        """Write metadata dictionary as individual key-value messages with timestamp.
+        
+        Args:
+            metadata_dict: Dictionary with metadata key-value pairs
+        """
+        import json
+        import time
+        
+        if not self.connected:
+            self.logger.error("Not connected to MQTT broker.")
+            return
+        
+        timestamp_ns = int(time.time() * 1_000_000_000)
+        station_id = self.config.get('DFLD_STATION_ID', '')
+        if not station_id:
+            self.logger.error("DFLD_STATION_ID not set, skipping metadata transmission")
+            return
+        
+        try:
+            for key, value in metadata_dict.items():
+                if key == "ts":  # Skip if timestamp already exists
+                    continue
+                    
+                meta_message = {
+                    "station": station_id,
+                    "key": key,
+                    "value": value,
+                    "ts": timestamp_ns
+                }
+                
+                self.client.publish(self.meta_topic, json.dumps(meta_message))
+                self.logger.info(f"Published metadata to topic {self.meta_topic}: {key}={value}")
+        except Exception as e:
+            self.logger.error(f"Failed to publish metadata: {e}")
 
     def close(self):
         if self.client:
