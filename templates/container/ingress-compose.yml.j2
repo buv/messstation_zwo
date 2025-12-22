@@ -1,114 +1,88 @@
 services:
-{% if hw_conf["DFLD_DNMS_AVAILABLE"]==1 %}
-  dnms2mqtt:
+  # Unified sensor to MQTT service - replaces individual sensor services
+  sensor2mqtt:
     image: dfld_box
     restart: unless-stopped
-    container_name: dnms2mqtt
-    entrypoint: python /dfld/dnms2mqtt.py
+    container_name: sensor2mqtt
+    entrypoint: python /dfld/sensor2mqtt.py
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
-      - DEVICE=${DEVICE_DNMS}
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
+      - MQTT_META_TOPIC=dfld/metadata/sensors
+      - READOUT_INTERVAL_NOISE=1.0
+      - READOUT_INTERVAL_AIR=60.0
+      - RETRY_INTERVAL=120
+      - LOG_LEVEL=INFO
+      # DNMS Serial config
+      - DNMS_DEVICE=${DEVICE_DNMS:-/dev/ttyDNMS}
       - DNMS_BAUDRATE=500000
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
-      - MQTT_META_TOPIC=dfld/metadata/sensors
-      - READOUT_INTERVAL=0.0
-      - LOG_LEVEL=INFO
+      # DFLD Legacy config
+      - AK_MODUL_DEVICE=${DEVICE_DFLD:-/dev/ttyUSB0}
+      - AK_MODUL_BAUDRATE=9600
+      # I2C config
+      - DNMS_I2C_ADDRESS=0x55
+      - BME280_I2C_ADDRESS=0x76
+      - I2C_BUS=1
+      - DNMS_MICROPHONE_TYPE=28
+      # UDP config
+      - UDP_LISTEN_PORT=11883
+      # System metadata config
+      - MQTT_META_SYSTEM_TOPIC=dfld/metadata/system
+      - MQTT_META_GEO_TOPIC=dfld/metadata/geo
+      - STATION_LAT=${STATION_LAT:-}
+      - STATION_LON=${STATION_LON:-}
+      - STATION_ALT=${STATION_ALT:-}
+      - STATION_CITY=${STATION_CITY:-}
+      - STARTUP_DELAY=30
     labels:
       - homepage.group=Infrastructure
-      - homepage.name=dnms2influx
-      - homepage.icon=/icons/microphone-voice-icon.svg
-      - homepage.description=We get the noise
+      - homepage.name=sensor2mqtt
+      - homepage.icon=/icons/thermometer-icon.svg
+      - homepage.description=Unified sensor data collector
       - homepage.showStats=true
     networks:
       - network
     devices:
+      - ${DEVICE_I2C}
+{% if hw_conf["DFLD_DNMS_AVAILABLE"]==1 %}
       - ${DEVICE_DNMS}
-    # device_cgroup_rules:
-    #   - 'c 166:* rmw'  # for /dev/ttyDNMS
-    #   - 'c 188:* rmw'  # for /dev/ttyACM0
 {% endif %}
-
 {% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
-  dfld2mqtt:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: dfld2mqtt
-    entrypoint: python /dfld/dfld2mqtt.py
-    environment:
-      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
-      - DEVICE=${DEVICE_DFLD}
-      - DFLD_BAUDRATE=9600
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
-      - MQTT_META_TOPIC=dfld/metadata/sensors
-      - READOUT_INTERVAL=0.0
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=dnms2mqtt
-      - homepage.icon=https://www.dfld.de/Basics/images/Logo-DFLD.svg
-      - homepage.description=Fancy legacy stuff
-      - homepage.showStats=true
-    networks:
-      - network
-    devices:
       - ${DEVICE_DFLD}
 {% endif %}
+{% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0 and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
+    # No hardware sensors detected, only UDP listener active
+    ports:
+      - 11883:11883/udp
+{% endif %}
+    # Required for hardware detection and access
+    privileged: true
 
-{% if hw_conf["DNMS_I2C_AVAILABLE"]==1 %}
-  dnmsiic2mqtt:
+  mqtt2tsdb:
     image: dfld_box
     restart: unless-stopped
-    container_name: dnmsiic2mqtt
-    entrypoint: python /dfld/dnmsiic2mqtt.py
+    container_name: mqtt2tsdb
+    entrypoint: python /dfld/mqtt2tsdb.py
     environment:
-      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
-      - DNMS_I2C_ADDRESS=0x55
+      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
-      - MQTT_META_TOPIC=dfld/metadata/sensors
-      - READOUT_INTERVAL=1.0
-      - RETRY_INTERVAL=10.0
+      - MQTT_TOPIC=dfld/sensors/noise/spl/#
+      - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure
-      - homepage.name=dnmsiic2mqtt
-      - homepage.icon=/icons/processor-icon.svg
-      - homepage.description=We get the noise
+      - homepage.name=mqtt2tsdb
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Push the data home
       - homepage.showStats=true
     networks:
       - network
-    devices:
-      - ${DEVICE_I2C}
-{% endif %}
 
-{% if hw_conf["BME280_AVAILABLE"]==1 %}
-  bme2mqtt:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: bme2mqtt
-    entrypoint: python /dfld/bme2mqtt.py
-    environment:
-      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_DATA_TOPIC=dfld/sensors/air
-      - MQTT_META_TOPIC=dfld/metadata/sensors
-      - READOUT_INTERVAL=60
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=bme2mqtt
-      - homepage.icon=/icons/thermometer-icon.svg
-      - homepage.description=We get the noise
-      - homepage.showStats=true
-    networks:
-      - network
-    devices:
-      - ${DEVICE_I2C}
-{% endif %}
-
-{% if dfld_legacy | length != 0 %}
+{% if dfld_legacy is defined and dfld_legacy | length > 0 %}
   tsdb2ftp:
     image: dfld_box
     restart: unless-stopped
@@ -130,7 +104,7 @@ services:
       - homepage.group=Infrastructure
       - homepage.name=tsdb2ftp
       - homepage.icon=/icons/server-upload-icon.svg
-      - homepage.description=Push the data home
+      - homepage.description=Export data to FTP
       - homepage.showStats=true
     networks:
       - network
@@ -141,126 +115,23 @@ services:
     container_name: mqtt2liveview
     entrypoint: python /dfld/mqtt2liveview.py
     environment:
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=dfld/sensors/noise/spl/#
       - DFLD_REGION=${DFLD_REGION}
       - DFLD_STATION=${DFLD_STATION}
       - DFLD_CKSUM=${DFLD_CKSUM}
-      - DFLD_LEGACY=${DFLD_LEGACY}
       - DFLD_LIVEVIEW=${DFLD_LIVEVIEW}
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure
       - homepage.name=mqtt2liveview
       - homepage.icon=/icons/server-upload-icon.svg
-      - homepage.description=Push the data home
+      - homepage.description=Send data to LiveView
       - homepage.showStats=true
     networks:
       - network
 {% endif %}
-
-{% if osm_station_id is defined and osm_sensors is defined and osm_api_key is defined %}
-  tsdb2osm:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: tsdb2osm
-    entrypoint: python /dfld/tsdb2osm.py
-    environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
-      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
-      - OSM_STATION_ID=${OSM_STATION_ID}
-      - OSM_SENSORS=${OSM_SENSORS}
-      - OSM_API_KEY=${OSM_API_KEY}
-{% if osm_interval is defined %}
-      - OSM_INTERVAL=${OSM_INTERVAL}
-{% endif %}
-      - TZ=${TZ}
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=tsdb2osm
-      - homepage.icon=/icons/server-upload-icon.svg
-      - homepage.description=Push data to openSenseMap
-      - homepage.showStats=true
-    networks:
-      - network
-{% endif %}
-
-{% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0  and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
-  udp2mqtt:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: udp2mqtt
-    entrypoint: python /dfld/udp2mqtt.py
-    environment:
-      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
-      - UDP_LISTEN_PORT=11883
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
-      - MQTT_META_TOPIC=dfld/metadata/sensors
-      - READOUT_INTERVAL=0.0
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=udp2mqtt
-      - homepage.icon=/icons/thermometer-icon.svg
-      - homepage.description=We get the noise
-      - homepage.showStats=true
-    ports:
-      - 11883:11883/udp
-    networks:
-      - network
-{% endif %}
-
-  system2mqtt:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: system2mqtt
-    entrypoint: python /dfld/system2mqtt.py
-    environment:
-      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_META_SYSTEM_TOPIC=dfld/metadata/system
-      - MQTT_META_GEO_TOPIC=dfld/metadata/geo
-      - STARTUP_DELAY=30
-      - STATION_LAT=${STATION_LAT:-}
-      - STATION_LON=${STATION_LON:-}
-      - STATION_ALT=${STATION_ALT:-}
-      - STATION_CITY=${STATION_CITY:-}
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=system2mqtt
-      - homepage.icon=/icons/processor-icon.svg
-      - homepage.description=Publish system metadata once
-      - homepage.showStats=true
-    networks:
-      - network
-
-  mqtt2tsdb:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: mqtt2tsdb
-    entrypoint: python /dfld/mqtt2tsdb.py
-    environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
-      - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
-      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/#
-      - TZ=${TZ}
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=mqtt2tsdb
-      - homepage.icon=/icons/server-upload-icon.svg
-      - homepage.description=Push the data home
-      - homepage.showStats=true
-    networks:
-      - network
 
 {% if mqtt_bridged_broker is defined and mqtt_bridged_broker | length > 0 and mqtt_bridged_rename is defined and mqtt_bridged_rename | length > 0 %}
   mqtt2mqtt:
@@ -275,7 +146,6 @@ services:
       - MQTT_BRIDGED_BROKER=${MQTT_BRIDGED_BROKER}
       - MQTT_BRIDGED_RENAME=${MQTT_BRIDGED_RENAME}
       - MQTT_BRIDGED_TLS=${MQTT_BRIDGED_TLS}
-      - MQTT_CLIENT_ID=dfld-${DFLD_REGION}-${DFLD_STATION}
       - LOG_LEVEL=INFO
     volumes:
       - /etc/ssl/certs:/etc/ssl/certs:ro

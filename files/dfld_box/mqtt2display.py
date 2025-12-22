@@ -10,5 +10,6 @@ from dfld import EventLoop
 
 source = MqttDataSource()
 sink = SSD1306DataSink()
-event_loop = EventLoop(source, sink)
+readout_interval = float(os.getenv('READOUT_INTERVAL', 0.2))
+event_loop = EventLoop(source, sink, readout_interval)
 event_loop.start()

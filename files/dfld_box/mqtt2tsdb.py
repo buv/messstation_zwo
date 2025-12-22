@@ -10,6 +10,9 @@ from types import SimpleNamespace
 from paho.mqtt import client as mqtt
 from influxdb import InfluxDBClient
 
+# Derive module name for MQTT client ID base
+MODULE_NAME = os.path.basename(__file__).replace('.py', '')
+
 def main():
     # create config tuple from environment variables
     config = SimpleNamespace(**{
@@ -18,7 +21,7 @@ def main():
         "topic": os.getenv("MQTT_TOPIC", "dfld/sensors/#"),
         "qos": int(os.getenv("MQTT_QOS", 0)),
         "keepalive": int(os.getenv("MQTT_KEEPALIVE", 60)),
-        "client_id": os.getenv("MQTT_CLIENT_ID", f"mqtt2tsdb-{os.getpid()}"),
+        "client_id": f"{MODULE_NAME}-{os.getpid()}",
         "influxdb_server": os.getenv("INFLUXDB_SERVER", "influxdb:8086"),
         "influxdb_username": os.getenv("INFLUXDB_USERNAME", None),
         "influxdb_password": os.getenv("INFLUXDB_PASSWORD", None),

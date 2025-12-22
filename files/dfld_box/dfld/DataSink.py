@@ -10,7 +10,7 @@ class DataSink(abc.ABC):
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
-        self.client_name = os.getenv('CLIENT_NAME', sys.argv[0].split('/')[-1].replace('.py',''))
+        self.client_name = sys.argv[0].split('/')[-1].replace('.py','')
         self.logger = logging.getLogger(self.client_name)
 
         self.logger.debug(f"DataSink initialized with config: {self.config}")
@@ -58,7 +58,7 @@ class MqttDataSink(DataSink, abc.ABC):
         self.mqtt_server = self.config.get('MQTT_SERVER', 'mqtt:1883')
         self.data_topic = self.config.get('MQTT_DATA_TOPIC', 'dfld/default')
         self.meta_topic = self.config.get('MQTT_META_TOPIC', 'dfld/metadata/sensors')
-        self.client_id = self.config.get('MQTT_CLIENT_ID', sys.argv[0].split('/')[-1].replace('.py',''))
+        self.client_id = sys.argv[0].split('/')[-1].replace('.py','')
         self.logger.debug(f"MQTT DataSink config: mqtt_server={self.mqtt_server}, data_topic={self.data_topic}, meta_topic={self.meta_topic}, client_id={self.client_id}")
 
     def set_channel(self, topic: str):

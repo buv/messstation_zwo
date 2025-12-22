@@ -11,12 +11,15 @@ import logging
 import ssl
 from paho.mqtt import client as mqtt
 
+# Derive module name for MQTT client ID base
+MODULE_NAME = os.path.basename(__file__).replace('.py', '')
+
 # Config from environment (matching mosquitto bridge parameters)
 LOCAL_MQTT = os.getenv('MQTT_SERVER', 'mqtt:1883')
 REMOTE_MQTT = os.getenv('MQTT_BRIDGED_BROKER', '')  # e.g. "broker.emqx.io:8883"
 TOPIC_REWRITE = os.getenv('MQTT_BRIDGED_RENAME', '')  # e.g. "dfld/sensors/noise/ sensebox/cindy-s-test/"
 USE_TLS = os.getenv('MQTT_BRIDGED_TLS', 'false').lower() in ['true', 'yes', '1']
-CLIENT_ID = os.getenv('MQTT_CLIENT_ID', f'dfld-bridge-{os.getpid()}')
+STATION_ID = os.getenv('DFLD_STATION_ID', 'unknown')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=LOG_LEVEL)
@@ -91,7 +94,7 @@ logging.info(f'Resolved {remote_host} to {remote_ip}:{remote_port}')
 # Local MQTT client (subscriber)
 local_client = mqtt.Client(
     callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-    client_id=f'{CLIENT_ID}-local',
+    client_id=f'{MODULE_NAME}-{os.getpid()}',
     protocol=mqtt.MQTTv311
 )
 local_client.reconnect_delay_set(min_delay=1, max_delay=10)
@@ -99,7 +102,7 @@ local_client.reconnect_delay_set(min_delay=1, max_delay=10)
 # Remote MQTT client (publisher)
 remote_client = mqtt.Client(
     callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-    client_id=CLIENT_ID,
+    client_id=STATION_ID,
     protocol=mqtt.MQTTv311,
     clean_session=True
 )
