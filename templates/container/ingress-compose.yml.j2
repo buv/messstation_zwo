@@ -216,17 +216,19 @@ services:
 
   system2mqtt:
     image: dfld_box
-    restart: "no"
+    restart: unless-stopped
     container_name: system2mqtt
     entrypoint: python /dfld/system2mqtt.py
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_META_TOPIC=dfld/metadata/system
+      - MQTT_META_SYSTEM_TOPIC=dfld/metadata/system
+      - MQTT_META_GEO_TOPIC=dfld/metadata/geo
       - STARTUP_DELAY=30
       - STATION_LAT=${STATION_LAT:-}
       - STATION_LON=${STATION_LON:-}
       - STATION_ALT=${STATION_ALT:-}
+      - STATION_CITY=${STATION_CITY:-}
       - LOG_LEVEL=INFO
     labels:
       - homepage.group=Infrastructure

@@ -39,6 +39,10 @@ class DataSink(abc.ABC):
         """Set the channel or topic for the data sink."""
         pass
 
+    def write_meta(self, metadata_dict: dict):
+        """Write metadata. Default implementation does nothing."""
+        pass
+
     @abc.abstractmethod
     def close(self):
         """Close the connection to the data sink."""
