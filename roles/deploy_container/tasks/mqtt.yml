@@ -23,3 +23,17 @@
     group: "{{ dfld_user_info.group }}"
     state: directory
     mode: '0755'
+
+- name: Check if client-certs.tgz exists in playbook directory
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/client-certs.tgz"
+  register: client_certs_archive
+
+- name: Extract client certificates if archive exists
+  ansible.builtin.unarchive:
+    src: "{{ playbook_dir }}/client-certs.tgz"
+    dest: "{{ dfld_dir }}/mqtt-certs"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    mode: '0644'
+  when: client_certs_archive.stat.exists
