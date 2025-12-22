@@ -200,6 +200,8 @@ services:
       - MQTT_SERVER=${MQTT_SERVER}
       - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
       - MQTT_META_TOPIC=dfld/metadata/sensors
+      - MQTT_DATA_TOPIC=dfld/sensors/noise/spl
+      - MQTT_META_TOPIC=dfld/metadata/sensors
       - READOUT_INTERVAL=0.0
       - LOG_LEVEL=INFO
     labels:
