@@ -74,6 +74,7 @@ def get_geo_position():
     station_lat = os.getenv('STATION_LAT')
     station_lon = os.getenv('STATION_LON')
     station_alt = os.getenv('STATION_ALT')
+    station_city = os.getenv('STATION_CITY')
     
     if station_lat:
         try:
@@ -93,6 +94,9 @@ def get_geo_position():
         except ValueError:
             pass
     
+    if station_city:
+        geo_data['station_city'] = station_city
+    
     return geo_data
 
 def main():
@@ -105,6 +109,13 @@ def main():
     # Create MQTT data sink
     mqtt_sink = MqttDataSink()
     mqtt_sink.set_meta_channel(mqtt_topic)
+    client_id = mqtt_sink.client_id
+    mqtt_sink.client_id = f"{client_id}-system"  # Make client ID unique
+    
+    # Debug: Log configuration
+    mqtt_sink.get_logger().info(f"Configuration: DFLD_STATION_ID={station_id}")
+    mqtt_sink.get_logger().info(f"Configuration: MQTT_META_SYSTEM_TOPIC={mqtt_topic}")
+    mqtt_sink.get_logger().info(f"Configuration: MQTT_META_GEO_TOPIC={geo_topic}")
     
     try:
         # Wait before publishing (configurable delay)
@@ -126,12 +137,18 @@ def main():
         geo_info = get_geo_position()
         if geo_info:
             geo_sink = MqttDataSink()
+            geo_sink.client_id = f"{client_id}-geo"  # Make client ID unique
             geo_sink.set_meta_channel(geo_topic)
             geo_sink.connect()
             if geo_sink.is_connected():
                 geo_sink.write_meta(geo_info)
-                mqtt_sink.get_logger().info("Published geo metadata to {geo_topic}")
+                mqtt_sink.get_logger().info(f"Published geo metadata to {geo_topic}")
             geo_sink.close()
+        
+        # Keep container running
+        mqtt_sink.get_logger().info("System metadata published successfully. Container staying alive.")
+        while True:
+            time.sleep(3600)  # Sleep 1 hour
         
     except Exception as e:
         mqtt_sink.get_logger().error(f"Error publishing system metadata: {e}")
