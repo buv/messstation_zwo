@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     container_name: sensor2mqtt
     entrypoint: python /dfld/sensor2mqtt.py
+    # High priority for sensor data collection
+    cpu_shares: 1024
     environment:
       - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
       - MQTT_SERVER=${MQTT_SERVER}

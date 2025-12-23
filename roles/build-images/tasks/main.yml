@@ -17,6 +17,7 @@
     force: false
   loop: "{{ image_info.results }}"
   when: not item.images
+  no_log: true
 
 - name: Build dfld images only if they don't exist
   community.docker.docker_image:
@@ -26,3 +27,4 @@
     source: build
   loop: "{{ image_info.results }}"
   when: not item.images
+  no_log: true
