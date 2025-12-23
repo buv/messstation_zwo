@@ -10,6 +10,9 @@ from types import SimpleNamespace
 from paho.mqtt import client as mqtt
 from dfld import LiveView
 
+# Derive module name for MQTT client ID base
+MODULE_NAME = os.path.basename(__file__).replace('.py', '')
+
 def main():
     # create config tuple from environment variables
     config = SimpleNamespace(**{
@@ -18,7 +21,7 @@ def main():
         "topic": os.getenv("MQTT_TOPIC", "dfld/sensors/noise/#"),
         "qos": int(os.getenv("MQTT_QOS", 0)),
         "keepalive": int(os.getenv("MQTT_KEEPALIVE", 60)),
-        "client_id": os.getenv("MQTT_CLIENT_ID", f"mqtt2liveview-{os.getpid()}"),
+        "client_id": f"{MODULE_NAME}-{os.getpid()}",
     })
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=config.log_level)
@@ -28,7 +31,7 @@ def main():
 
     # MQTT-Client für MQTT v3.1.1 über TCP
     client = mqtt.Client(
-        client_id=f"mqtt2liveview-{os.getpid()}",
+        client_id=config.client_id,
         clean_session=True,
         protocol=mqtt.MQTTv311,
         transport="tcp",  # explizit TCP (kein WebSocket)

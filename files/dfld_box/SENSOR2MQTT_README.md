@@ -54,10 +54,11 @@ docker run -d \
 - `MQTT_BROKER` - MQTT Broker Hostname/IP (default: localhost)
 - `MQTT_PORT` - MQTT Broker Port (default: 1883)
 - `MQTT_TOPIC` - MQTT Topic für Sensor-Daten (default: sensors)
-- `MQTT_CLIENT_ID` - MQTT Client ID (default: auto-generiert)
+- `LOG_LEVEL` - Logging Level (default: INFO)
 
 ### Sensor-Konfiguration
-- `READOUT_INTERVAL` - Ausleseintervall in Sekunden (default: 60)
+- `READOUT_INTERVAL_NOISE` - Ausleseintervall für Lärmsensoren in Sekunden (default: 1.0)
+- `READOUT_INTERVAL_AIR` - Ausleseintervall für Luftqualitätssensoren in Sekunden (default: 60.0)
 - `RETRY_INTERVAL` - Retry-Intervall bei Fehlern in Sekunden (default: 120)
 - `LOG_LEVEL` - Log-Level: DEBUG, INFO, WARNING, ERROR (default: INFO)
 
@@ -90,14 +91,15 @@ Das Programm nutzt die gleiche Logik wie `detect_hw.py`:
 
 ## Migration von alten Skripten
 
-Die folgenden Programme werden durch `sensor2mqtt.py` ersetzt:
-- ~~`bme2mqtt.py`~~ → integriert
-- ~~`dnmsiic2mqtt.py`~~ → integriert
-- ~~`dnms2mqtt.py`~~ → integriert
-- ~~`dfld2mqtt.py`~~ → integriert
-- ~~`udp2mqtt.py`~~ → integriert
+Die folgenden Programme wurden durch `sensor2mqtt.py` ersetzt und entfernt:
+- ~~`bme2mqtt.py`~~ → ✅ integriert und entfernt
+- ~~`dnmsiic2mqtt.py`~~ → ✅ integriert und entfernt
+- ~~`dnms2mqtt.py`~~ → ✅ integriert und entfernt
+- ~~`dfld2mqtt.py`~~ → ✅ integriert und entfernt
+- ~~`udp2mqtt.py`~~ → ✅ integriert und entfernt
+- ~~`system2mqtt.py`~~ → ✅ integriert und entfernt
 
-**Hinweis:** Die alten Programme bleiben für Kompatibilität erhalten, können aber durch `sensor2mqtt.py` ersetzt werden.
+**Hinweis:** Das unified Docker Compose Template wurde ebenfalls entfernt.
 
 ## Logging
 

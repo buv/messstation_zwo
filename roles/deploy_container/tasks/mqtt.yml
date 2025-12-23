@@ -28,6 +28,8 @@
   ansible.builtin.stat:
     path: "{{ playbook_dir }}/client-certs.tgz"
   register: client_certs_archive
+  delegate_to: localhost
+  become: false
 
 - name: Extract client certificates if archive exists
   ansible.builtin.unarchive:
@@ -36,4 +38,11 @@
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     mode: '0644'
+    remote_src: false
+  when: client_certs_archive.stat.exists
+
+- name: Set secure permissions for private key
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/mqtt-certs/client-key.pem"
+    mode: '0600'
   when: client_certs_archive.stat.exists

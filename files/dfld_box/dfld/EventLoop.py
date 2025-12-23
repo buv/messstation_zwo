@@ -8,10 +8,10 @@ from .DataSource import DataSource
 # create class for event loop
 
 class EventLoop(object):
-    def __init__(self, data_source: DataSource, data_sink: DataSink):
+    def __init__(self, data_source: DataSource, data_sink: DataSink, readout_interval=None):
         self.data_source = data_source
         self.data_sink = data_sink
-        self.readout_interval = float(os.getenv('READOUT_INTERVAL', 60))
+        self.readout_interval = readout_interval
         self.retry_interval = float(os.getenv('RETRY_INTERVAL', 120))
         self.process_empty = float(os.getenv('PROCESS_EMPTY', 0))
         self.dfld_station_id = os.getenv('DFLD_STATION_ID', 'default-station')
@@ -20,7 +20,7 @@ class EventLoop(object):
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
-        self.client_name = os.getenv('CLIENT_NAME', sys.argv[0].split('/')[-1].replace('.py',''))
+        self.client_name = sys.argv[0].split('/')[-1].replace('.py','')
         self.logger = logging.getLogger(self.client_name)
 
         self.logger.info(f"EventLoop starting with client_name={self.client_name}")
@@ -68,8 +68,9 @@ class EventLoop(object):
                 start_time = time.time()
                 self.process(self.data_source.read(), self.data_sink)
                 elapsed_time = time.time() - start_time
-                sleep_time = max(0, self.readout_interval - elapsed_time)
-                time.sleep(sleep_time)
+                if self.readout_interval is not None:
+                    sleep_time = max(0, self.readout_interval - elapsed_time)
+                    time.sleep(sleep_time)
 
             except Exception as e:
                 self.logger.error(f'Error in event loop: {e}')

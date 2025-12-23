@@ -12,7 +12,7 @@ class DataSource(abc.ABC):
 
         self.log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=self.log_level)
-        self.client_name = os.getenv('CLIENT_NAME', sys.argv[0].split('/')[-1].replace('.py',''))
+        self.client_name = sys.argv[0].split('/')[-1].replace('.py','')
         self.logger = logging.getLogger(self.client_name)
 
         self.logger.debug(f"DataSource initialized with config: {self.config}")
@@ -325,7 +325,7 @@ class MqttDataSource(DataSource, abc.ABC):
         self.topic = os.getenv('MQTT_TOPIC', 'dfld/sensors/#')
         self.qos = int(os.getenv('MQTT_QOS', 0))
         self.keepalive = int(os.getenv('MQTT_KEEPALIVE', 60))
-        self.client_id = os.getenv('MQTT_CLIENT_ID', f"mqtt_datasource-{os.getpid()}")
+        self.client_id = f"{os.path.basename(sys.argv[0]).replace('.py', '')}-{os.getpid()}"
         self.timeout = float(os.getenv('MQTT_READ_TIMEOUT', 2.0))
         self.logger.debug(f"MQTT DataSource config: server={self.mqtt_server}, topic={self.topic}")
         self.client = None
