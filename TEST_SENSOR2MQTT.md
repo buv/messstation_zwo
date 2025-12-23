@@ -194,7 +194,7 @@ timeout 60 mosquitto_sub -h localhost -t 'dfld/sensors/#' -v | wc -l
 ### Ressourcen-Vergleich
 ```bash
 # Alt: Alle einzelnen Container starten
-docker compose -f ingress-compose.yml up -d
+docker compose -f connectors-compose.yml up -d
 
 # Ressourcen messen
 docker stats --no-stream bme2mqtt dnmsiic2mqtt dnms2mqtt dfld2mqtt udp2mqtt
@@ -214,7 +214,7 @@ docker stats --no-stream sensor2mqtt_unified
 ### Startup-Zeit vergleichen
 ```bash
 # Alt
-time docker compose -f ingress-compose.yml up -d
+time docker compose -f connectors-compose.yml up -d
 
 # Neu
 time docker run -d --name sensor2mqtt_unified \
@@ -270,8 +270,8 @@ chmod +x test_sensor2mqtt.sh
 - [ ] MQTT-Topics korrekt: Daten kommen bei `dfld/sensors` an
 - [ ] Logs sauber: Keine ERROR-Messages
 - [ ] Backup erstellt: Alte Compose-Files gesichert
-- [ ] Compose-Template aktualisiert: `ingress-compose-unified.yml.j2`
-- [ ] Ansible-Deployment getestet: `ansible-playbook -i inventory.yml full.yml --tags deploy_ingress_stack`
+- [ ] Compose-Template aktualisiert: `connectors-compose-unified.yml.j2`
+- [ ] Ansible-Deployment getestet: `ansible-playbook -i inventory.yml full.yml --tags deploy_connectors_stack`
 - [ ] Alte Container gestoppt: `docker compose down`
 - [ ] Neuer Container läuft: `docker ps | grep sensor2mqtt`
 - [ ] Monitoring aktiv: Logs und Metriken werden überwacht
@@ -285,13 +285,13 @@ docker stop sensor2mqtt
 docker rm sensor2mqtt
 
 # 2. Alte Compose-Config wiederherstellen
-cp templates/container/ingress-compose.yml.j2.backup \
-   templates/container/ingress-compose.yml.j2
+cp templates/container/connectors-compose.yml.j2.backup \
+   templates/container/connectors-compose.yml.j2
 
 # 3. Alte Container neu starten
-ansible-playbook -i inventory.yml full.yml --tags deploy_ingress_stack
+ansible-playbook -i inventory.yml full.yml --tags deploy_connectors_stack
 # ODER
-docker compose -f ingress-compose.yml up -d
+docker compose -f connectors-compose.yml up -d
 
 # 4. Funktionalität prüfen
 mosquitto_sub -h localhost -t 'dfld/sensors/#' -v

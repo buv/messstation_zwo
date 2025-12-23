@@ -72,33 +72,33 @@ cd /home/dfld/messstation_zwo/files/dfld_box
 **Option A: Neue Template verwenden (empfohlen)**
 ```bash
 # Backup der alten Konfiguration
-cp templates/container/ingress-compose.yml.j2 templates/container/ingress-compose.yml.j2.backup
+cp templates/container/connectors-compose.yml.j2 templates/container/connectors-compose.yml.j2.backup
 
 # Neue Template verwenden
-cp templates/container/ingress-compose-unified.yml.j2 templates/container/ingress-compose.yml.j2
+cp templates/container/connectors-compose-unified.yml.j2 templates/container/connectors-compose.yml.j2
 ```
 
 **Option B: Ansible-Playbook anpassen**
-In `roles/deploy_ingress_stack/tasks/main.yml` das Template ändern:
+In `roles/deploy_connectors_stack/tasks/main.yml` das Template ändern:
 ```yaml
 - name: Generate docker-compose file
   template:
-    src: container/ingress-compose-unified.yml.j2  # <- Geändert
-    dest: "{{ install_dir }}/ingress-compose.yml"
+    src: container/connectors-compose-unified.yml.j2  # <- Geändert
+    dest: "{{ install_dir }}/connectors-compose.yml"
 ```
 
 ### 3. Container neu deployen
 
 ```bash
 # Alte Container stoppen und entfernen
-docker compose -f ingress-compose.yml down
+docker compose -f connectors-compose.yml down
 
 # Ansible Playbook neu ausführen
-ansible-playbook -i inventory.yml full.yml --tags deploy_ingress_stack
+ansible-playbook -i inventory.yml full.yml --tags deploy_connectors_stack
 
 # ODER manuell:
 # Neue Container starten
-docker compose -f ingress-compose.yml up -d
+docker compose -f connectors-compose.yml up -d
 ```
 
 ### 4. Logs prüfen
@@ -139,10 +139,10 @@ docker run --rm -it --privileged -v /dev:/dev dfld_box python bme2mqtt.py
 Falls Probleme auftreten:
 ```bash
 # Zurück zur alten Template
-cp templates/container/ingress-compose.yml.j2.backup templates/container/ingress-compose.yml.j2
+cp templates/container/connectors-compose.yml.j2.backup templates/container/connectors-compose.yml.j2
 
 # Alte Container neu deployen
-ansible-playbook -i inventory.yml full.yml --tags deploy_ingress_stack
+ansible-playbook -i inventory.yml full.yml --tags deploy_connectors_stack
 ```
 
 ## Konfiguration
@@ -275,7 +275,7 @@ restart: unless-stopped  # <- bereits in Compose-Config
 docker ps > container_status_backup.txt
 
 # Compose-File sichern
-cp ingress-compose.yml ingress-compose.yml.backup
+cp connectors-compose.yml connectors-compose.yml.backup
 
 # Logs sichern
 for container in bme2mqtt dnmsiic2mqtt dnms2mqtt dfld2mqtt udp2mqtt; do

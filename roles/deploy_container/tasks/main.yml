@@ -18,9 +18,9 @@
   ansible.builtin.include_tasks:
     file: "deploy_infrastructure.yml"
 
-- name: Deploy the ingress stack
+- name: Deploy the connectors stack
   ansible.builtin.include_tasks:
-    file: "deploy_ingress.yml"
+    file: "deploy_connectors.yml"
 
 - name: Deploy the adsb stack
   ansible.builtin.include_tasks:

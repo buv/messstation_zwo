@@ -6,13 +6,13 @@
     path: "{{ conf_dir }}/dfld.yml"
   register: dfld_yml_stat
 
-- name: Generate ingress/dfld_user.env from dfld.yml using script
+- name: Generate connectors/dfld_user.env from dfld.yml using script
   ansible.builtin.command:
-    cmd: /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/ingress/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}
-  register: generate_ingress_result
+    cmd: /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/connectors/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}
+  register: generate_connectors_result
   when: dfld_yml_stat.stat.exists
-  changed_when: generate_ingress_result.rc == 0
-  failed_when: generate_ingress_result.rc == 2
+  changed_when: generate_connectors_result.rc == 0
+  failed_when: generate_connectors_result.rc == 2
 
 - name: Generate adsb/dfld_user.env from dfld.yml using script
   ansible.builtin.command:

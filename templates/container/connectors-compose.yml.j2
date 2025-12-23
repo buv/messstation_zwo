@@ -169,7 +169,7 @@ services:
     container_name: mqtt2mqtt
     entrypoint: python /dfld/mqtt2mqtt.py
     env_file:
-      - ${DOCKER_EXTERNAL_ROOT}/ingress/dfld_user.env
+      - ${DOCKER_EXTERNAL_ROOT}/connectors/dfld_user.env
     environment:
       - DFLD_STATION_ID=dfld-${DFLD_REGION}-${DFLD_STATION}
       - MQTT_SERVER=${MQTT_SERVER}

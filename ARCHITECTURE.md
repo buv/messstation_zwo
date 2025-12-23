@@ -283,7 +283,7 @@ Ansible Controller
 ### Neue Egress-Ziele
 1. Container mit `mqtt2*` oder `tsdb2*` Pattern erstellen
 2. Non-blocking Design mit Timeouts implementieren
-3. In `ingress-compose.yml` Template hinzufügen
+3. In `connectors-compose.yml` Template hinzufügen
 
 ### Neue Visualisierungen
 1. Grafana Dashboard erstellen

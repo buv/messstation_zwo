@@ -92,8 +92,8 @@ Der `tsdb2osm` Container wird automatisch erstellt, wenn alle drei Pflichtparame
 
 Die folgenden Templates wurden erweitert:
 - `templates/container/compose.env.j2` - Fügt OSM-Umgebungsvariablen hinzu
-- `templates/container/ingress-compose.yml.j2` - Definiert tsdb2osm Container
-- `templates/container/ingress-compose-unified.yml.j2` - Definiert tsdb2osm Container
+- `templates/container/connectors-compose.yml.j2` - Definiert tsdb2osm Container
+- `templates/container/connectors-compose-unified.yml.j2` - Definiert tsdb2osm Container
 
 ### 4. Container-Konfiguration
 
@@ -250,8 +250,8 @@ Für lineare Größen wie Temperatur, Luftfeuchtigkeit, etc.:
 - `files/dfld_box/tsdb2osm.py` - Hauptskript
 - `files/dfld_box/requirements.txt` - Python-Dependencies
 - `templates/container/compose.env.j2` - Umgebungsvariablen-Template
-- `templates/container/ingress-compose.yml.j2` - Docker Compose für separate Services
-- `templates/container/ingress-compose-unified.yml.j2` - Docker Compose für unified Services
+- `templates/container/connectors-compose.yml.j2` - Docker Compose für separate Services
+- `templates/container/connectors-compose-unified.yml.j2` - Docker Compose für unified Services
 
 ## Autor und Lizenz
 
