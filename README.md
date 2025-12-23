@@ -13,6 +13,25 @@ Die Version Mini dient dem Erfassen der A-gewichteten Schalldruckpegel und der W
 - Ein Raspberry Pi Zero 2W oder mehr
 - Ein Schallpegelsensor, entweder AK-Modul Bus oder vorzugsweise [DNMS](https://github.com/hbitter/DNMS), der über USB mit 1Hz dBA-gewichtete Schallpegeldaten liefert
 
+#### Ressourcenverbrauch
+Die Version Mini benötigt etwa 38 MiB RAM für alle Container:
+
+```bash
+sudo docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.CPUPerc}}"
+```
+```bash
+NAME            MEM USAGE / LIMIT     MEM %     CPU %
+mqtt2tsdb       5.676MiB / 416.1MiB   1.36%     1.00%
+sensor2mqtt     2.68MiB / 416.1MiB    0.64%     0.29%
+tsdb2ftp        612KiB / 416.1MiB     0.14%     0.00%
+mqtt2display    4.117MiB / 416.1MiB   0.99%     2.07%
+mqtt2mqtt       2.711MiB / 416.1MiB   0.65%     0.45%
+mqtt2liveview   2.32MiB / 416.1MiB    0.56%     0.27%
+tsdb2osm        7.547MiB / 416.1MiB   1.81%     0.00%
+mqtt            808KiB / 416.1MiB     0.19%     0.12%
+influxdb        11.88MiB / 416.1MiB   2.85%     0.66%
+```
+
 ### Version Full
 Die Version Full enthält alle Funktionen der Version Mini und unterstützt zusätzlich noch einen lokal angebundenen USB ADS-B Empfänger sowie ein Grafana-Dashboard. Der ADS-B Datenstrom wird verwendet um lokal einen Überflug zu erkennen und ihn im Grafana-Dashboard des Schalldruckpegels zu markieren. Zu jedem dieser erkannten Überflüge sind lokal Details des Flugzeugs (Kennzeichen, Typ) und ein Link bei adsbexchange.com auf das Exemplar dargestellt.
 

@@ -133,6 +133,33 @@ services:
       - network
 {% endif %}
 
+{% if osm_station_id is defined and osm_station_id | length > 0 and osm_sensors is defined and osm_sensors | length > 0 and osm_api_key is defined and osm_api_key | length > 0 %}
+  tsdb2osm:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: tsdb2osm
+    entrypoint: python /dfld/tsdb2osm.py
+    environment:
+      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
+      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
+      - OSM_STATION_ID=${OSM_STATION_ID}
+      - OSM_SENSORS=${OSM_SENSORS}
+      - OSM_API_KEY=${OSM_API_KEY}
+      - OSM_INTERVAL=${OSM_INTERVAL:-300}
+      - OSM_API_URL=${OSM_API_URL:-https://api.opensensemap.org}
+      - TZ=${TZ}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=tsdb2osm
+      - homepage.icon=/icons/server-upload-icon.svg
+      - homepage.description=Export data to openSenseMap
+      - homepage.showStats=true
+    networks:
+      - network
+{% endif %}
+
 {% if mqtt_bridged_broker is defined and mqtt_bridged_broker | length > 0 and mqtt_bridged_rename is defined and mqtt_bridged_rename | length > 0 %}
   mqtt2mqtt:
     image: dfld_box

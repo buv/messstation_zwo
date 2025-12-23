@@ -1,19 +1,28 @@
 ---
 
-- name: Copy files for docker images
+- name: Check if dfld images exist
+  community.docker.docker_image_info:
+    name: "{{ item }}"
+  register: image_info
+  loop: "{{ docker_images[deployment_mode] }}"
+  failed_when: false
+
+- name: Copy files for docker images only if image doesn't exist
   ansible.builtin.copy:
-    src: "{{ item }}/"
-    dest: "{{ dfld_dir }}/{{ item }}"
+    src: "{{ item.item }}/"
+    dest: "{{ dfld_dir }}/{{ item.item }}"
     owner: "{{ dfld_user }}"
     group: "{{ dfld_group }}"
     mode: '0644'
     force: false
-  loop: "{{ docker_images[deployment_mode] }}"
+  loop: "{{ image_info.results }}"
+  when: not item.images
 
-- name: Build dfld images
+- name: Build dfld images only if they don't exist
   community.docker.docker_image:
-    name: "{{ item }}"
+    name: "{{ item.item }}"
     build:
-      path: "{{ dfld_dir }}/{{ item }}"
+      path: "{{ dfld_dir }}/{{ item.item }}"
     source: build
-  loop: "{{ docker_images[deployment_mode] }}"
+  loop: "{{ image_info.results }}"
+  when: not item.images
