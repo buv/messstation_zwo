@@ -3,6 +3,10 @@
 - name: Install dfld-generate-env.sh script
   ansible.builtin.include_tasks: install_generate_script.yml
 
+- name: Optimize memory usage for mini deployment mode
+  ansible.builtin.include_tasks: optimize_memory.yml
+  when: deployment_mode == "mini"
+
 - name: Create dfld network
   ansible.builtin.include_tasks: network.yml
 

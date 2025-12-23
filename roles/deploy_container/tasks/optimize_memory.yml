@@ -1,0 +1,51 @@
+---
+
+- name: Optimize memory usage for mini deployment mode
+  when: deployment_mode == "mini"
+  block:
+    - name: Set swappiness to 1 (minimal swapping)
+      ansible.builtin.lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^vm.swappiness'
+        line: 'vm.swappiness=1'
+        create: true
+      become: true
+
+    - name: Apply swappiness change immediately
+      ansible.builtin.command: sysctl vm.swappiness=1
+      become: true
+
+    - name: Enable memory compaction for better RAM usage
+      ansible.builtin.lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^vm.compact_memory'
+        line: 'vm.compact_memory=1'
+        create: true
+      become: true
+
+    - name: Force immediate memory cleanup
+      ansible.builtin.shell: |
+        echo 3 > /proc/sys/vm/drop_caches
+        sync
+        echo 1 > /proc/sys/vm/compact_memory
+      become: true
+      ignore_errors: true
+
+    - name: Apply memory optimization settings
+      ansible.builtin.command: sysctl -p
+      become: true
+
+    - name: Display current memory and swap status
+      ansible.builtin.shell: |
+        echo "=== Memory Status ==="
+        free -h
+        echo "=== Swap Status ==="
+        swapon --show
+        echo "=== Memory Settings ==="
+        sysctl vm.swappiness
+      register: memory_status
+      changed_when: false
+
+    - name: Show memory optimization results
+      ansible.builtin.debug:
+        msg: "{{ memory_status.stdout_lines }}"
