@@ -62,9 +62,11 @@ class MqttDataSink(DataSink, abc.ABC):
         self.logger.debug(f"MQTT DataSink config: mqtt_server={self.mqtt_server}, data_topic={self.data_topic}, meta_topic={self.meta_topic}, client_id={self.client_id}")
 
     def set_channel(self, topic: str):
+        self.logger.info(f"Registered MQTT topic for writing: {topic}")
         self.data_topic = topic
 
     def set_meta_channel(self, topic: str):
+        self.logger.info(f"Registered MQTT metadata topic for writing: {topic}")
         self.meta_topic = topic
 
     def connect(self):
@@ -139,7 +141,7 @@ class MqttDataSink(DataSink, abc.ABC):
             self.client.loop_stop()
             self.client.disconnect()
         self.connected = False
-        self.logger.info("Disconnected from MQTT broker.")
+        self.logger.info(f"Disconnected from MQTT broker. Topics closed: data={self.data_topic}, meta={self.meta_topic}")
         super().close()
 
 
