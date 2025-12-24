@@ -1,0 +1,47 @@
+---
+# Capture Git version information for deployment tracking
+
+- name: Get Git commit date
+  ansible.builtin.command:
+    cmd: git show -s --format=%ci HEAD
+    chdir: "{{ playbook_dir }}"
+  register: git_commit_date
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Get Git commit hash
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ playbook_dir }}"
+  register: git_commit_hash
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Get Git tag (if available)
+  ansible.builtin.command:
+    cmd: git describe --tags --exact-match HEAD
+    chdir: "{{ playbook_dir }}"
+  register: git_tag
+  delegate_to: localhost
+  run_once: true
+  failed_when: false
+  become: false
+
+- name: Set version facts
+  ansible.builtin.set_fact:
+    messstation_commit: "{{ git_commit_hash.stdout[:8] }}"
+    messstation_version: "{{ git_tag.stdout if git_tag.rc == 0 else 'dev-' + git_commit_hash.stdout[:8] }}"
+    messstation_commit_date: "{{ git_commit_date.stdout }}"
+
+- name: Create version info file
+  ansible.builtin.copy:
+    content: |
+      MESSSTATION_VERSION={{ messstation_version }}
+      MESSSTATION_COMMIT={{ messstation_commit }}
+      MESSSTATION_COMMIT_DATE={{ messstation_commit_date }}
+    dest: /opt/dfld/version.env
+    owner: root
+    group: root
+    mode: '0644'

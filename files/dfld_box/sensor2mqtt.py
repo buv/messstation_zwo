@@ -231,6 +231,11 @@ def publish_system_metadata():
             else:
                 cpu_model = platform.processor() or "Unknown"
             
+            # Version information from environment
+            version = os.getenv('MESSSTATION_VERSION', 'unknown')
+            commit = os.getenv('MESSSTATION_COMMIT', 'unknown')
+            commit_date = os.getenv('MESSSTATION_COMMIT_DATE', 'unknown')
+            
             system_data = {
                 "os_name": os_name,
                 "os_version": os_version,
@@ -239,6 +244,9 @@ def publish_system_metadata():
                 "cpu_cores_logical": cpu_count_logical,
                 "cpu_freq_max_mhz": cpu_freq_max,
                 "memory_total_mb": memory_total_mb,
+                "messstation_version": version,
+                "messstation_commit": commit,
+                "messstation_commit_date": commit_date
             }
             
             # Publish all system data at once
