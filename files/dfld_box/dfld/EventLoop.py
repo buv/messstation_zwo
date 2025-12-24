@@ -61,8 +61,8 @@ class EventLoop(object):
 
                 # Send metadata once after both source and sink are connected
                 if not self.metadata_sent:
+                    self.logger.debug(f"Metadata to send: {self.data_source.metadata}")
                     self.data_sink.write_meta(self.data_source.metadata)
-                    self.logger.info(f"Sent metadata with {len(self.data_source.metadata)} keys")
                     self.metadata_sent = True
 
                 start_time = time.time()

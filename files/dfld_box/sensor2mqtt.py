@@ -110,57 +110,53 @@ def wait_for_mqtt_connection(sink):
         attempt += 1
 
 
-def detect_hardware():
+def detect_sensor_protocol(device_path, timeout=3):
     """
-    Detect available hardware sensors and return configuration.
-    Returns dict with availability flags for each sensor type.
+    Detect sensor protocol by attempting communication.
+    Returns 'dnms', 'dfld_legacy', or None
     """
-    env = {k + "_AVAILABLE": 0 for k in "DNMS_I2C BME280 ADSB DFLD_LEGACY DFLD_DNMS SSD1306".split()}
-    
-    # I2C scan
-    devices = {
-        0x55: "DNMS_I2C_AVAILABLE",
-        0x76: "BME280_AVAILABLE",
-        0x3c: "SSD1306_AVAILABLE",
-    }
+    import serial
+    import time
     
     try:
-        bus = smbus.SMBus(int(os.getenv('I2C_BUS', 1)))
-        for device, var in devices.items():
-            try:
-                bus.read_byte(device)
-                env[var] = 1
-            except:
-                pass
-    except Exception as e:
-        logging.warning(f"Failed to initialize I2C bus: {e}")
+        # Try DNMS protocol first (500000 baud)
+        with serial.Serial(device_path, 500000, timeout=1) as ser:
+            time.sleep(0.1)
+            ser.flushInput()
+            
+            # Wait for DNMS data (should come every second)
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                if line and ';' in line:
+                    # DNMS format: "timestamp;dBA;dBC;..."
+                    parts = line.split(';')
+                    if len(parts) >= 3:
+                        try:
+                            float(parts[1])  # dBA value
+                            float(parts[2])  # dBC value
+                            return 'dnms'
+                        except ValueError:
+                            pass
+    except:
+        pass
     
-    # Check for RTL-SDR on USB for ADS-B readout
-    supported_devices = [
-        "0bda:2838",  # nooElec
-        "0bda:2832",  # SDR ADS-B
-    ]
-    for s in supported_devices:
-        rc = subprocess.call(f"lsusb | grep -q {s}", shell=True)
-        if rc == 0:
-            env["ADSB_AVAILABLE"] = 1
-            break
+    try:
+        # Try DFLD Legacy protocol (9600 baud)
+        with serial.Serial(device_path, 9600, timeout=1) as ser:
+            time.sleep(0.1)
+            ser.flushInput()
+            
+            # Wait for DFLD data
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                if line and ('dB' in line or line.replace('.', '').replace('-', '').isdigit()):
+                    return 'dfld_legacy'
+    except:
+        pass
     
-    # Check tty devices
-    tty_devices = set([
-        str(comport.device).split('/')[-1] 
-        for comport in serial.tools.list_ports.comports(include_links=True)
-    ])
-    
-    if 'ttyDNMS' in tty_devices or os.getenv('DNMS_DEVICE'):
-        env['DFLD_DNMS_AVAILABLE'] = 1
-        env['DEVICE_DNMS'] = os.getenv('DNMS_DEVICE', '/dev/ttyDNMS')
-    
-    if 'ttyUSB0' in tty_devices or os.getenv('AK_MODUL_DEVICE'):
-        env['DFLD_LEGACY_AVAILABLE'] = 1
-        env['DEVICE_DFLD'] = os.getenv('AK_MODUL_DEVICE', '/dev/ttyUSB0')
-    
-    return env
+    return None
 
 
 def publish_system_metadata():
@@ -356,7 +352,8 @@ def main():
     logger.info("MQTT broker is reachable, proceeding with sensor initialization")
     
     # Detect available hardware
-    hw_config = detect_hardware()
+    import detect_hw
+    hw_config = detect_hw.detect_hardware()
     logger.info(f"Hardware detection results: {json.dumps(hw_config, indent=2)}")
     
     # Get sensor-specific intervals
@@ -377,17 +374,15 @@ def main():
         threads.append(start_sensor_thread(DNMSi2cDataSource, client_suffix="dnms-i2c", readout_interval=noise_interval))
     elif hw_config.get('DFLD_DNMS_AVAILABLE'):
         # Start DNMS serial if available (uses noise interval)
-        logger.info(f"Starting DNMS serial sensor with {noise_interval}s interval...")
-        # Set environment variables for DNMS
-        os.environ['DEVICE'] = hw_config.get('DEVICE_DNMS', '/dev/ttyDNMS')
-        os.environ['DNMS_BAUDRATE'] = os.getenv('DNMS_BAUDRATE', '500000')
+        device_path = hw_config.get('DEVICE_DNMS', '/dev/ttyDNMS')
+        logger.info(f"Starting DNMS serial sensor at {device_path} with {noise_interval}s interval...")
+        os.environ['DNMS_DEVICE'] = device_path
         threads.append(start_sensor_thread(DNMSDataSource, client_suffix="dnms-serial", readout_interval=noise_interval))
     elif hw_config.get('DFLD_LEGACY_AVAILABLE'):
         # Start DFLD/AK-Modul (legacy) if available (no interval - sensor-driven)
-        logger.info("Starting DFLD Legacy (AK-Modul) sensor (sensor-driven timing)...")
-        # Set environment variables for AK-Modul
-        os.environ['DEVICE'] = hw_config.get('DEVICE_DFLD', '/dev/ttyUSB0')
-        os.environ['DFLD_BAUDRATE'] = os.getenv('AK_MODUL_BAUDRATE', '9600')
+        device_path = hw_config.get('DEVICE_DFLD', '/dev/ttyUSB0')
+        logger.info(f"Starting DFLD Legacy (AK-Modul) sensor at {device_path} (sensor-driven timing)...")
+        os.environ['AK_MODUL_DEVICE'] = device_path
         threads.append(start_sensor_thread(AkModulDataSource, client_suffix="ak-modul"))
     else:    
         # Start UDP listener, if no local device available (for external data sources)

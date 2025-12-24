@@ -17,10 +17,10 @@ services:
       - RETRY_INTERVAL=120
       - LOG_LEVEL=INFO
       # DNMS Serial config
-      - DNMS_DEVICE=${DEVICE_DNMS:-/dev/ttyDNMS}
+      - DNMS_DEVICE=${DNMS_DEVICE:-}
       - DNMS_BAUDRATE=500000
       # DFLD Legacy config
-      - AK_MODUL_DEVICE=${DEVICE_DFLD:-/dev/ttyUSB0}
+      - AK_MODUL_DEVICE=${AK_MODUL_DEVICE:-}
       - AK_MODUL_BAUDRATE=9600
       # I2C config
       - DNMS_I2C_ADDRESS=0x55
@@ -45,14 +45,6 @@ services:
       - homepage.showStats=true
     networks:
       - network
-    devices:
-      - ${DEVICE_I2C}
-{% if hw_conf["DFLD_DNMS_AVAILABLE"]==1 %}
-      - ${DEVICE_DNMS}
-{% endif %}
-{% if hw_conf["DFLD_LEGACY_AVAILABLE"]==1 %}
-      - ${DEVICE_DFLD}
-{% endif %}
 {% if hw_conf["DNMS_I2C_AVAILABLE"]==0 and hw_conf["DFLD_LEGACY_AVAILABLE"]==0 and hw_conf["DFLD_DNMS_AVAILABLE"]==0 %}
     # No hardware sensors detected, only UDP listener active
     ports:
@@ -217,8 +209,6 @@ services:
       - homepage.showStats=true
     networks:
       - network
-    devices:
-      - ${DEVICE_I2C}
     privileged: true
 {% endif %}
 

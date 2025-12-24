@@ -227,10 +227,9 @@ class DNMSDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
         self.metadata["device"] = "dnms_serial"
-        config = os.environ
-        self.device = config.get('DNMS_DEVICE', '/dev/ttyDNMS')
-        self.logger.debug(f"DNMS DataSource config: device={self.device}")
-        self.baudrate = int(config.get('DNMS_BAUDRATE', '9600'))
+        self.device = os.getenv('DNMS_DEVICE', '/dev/ttyDNMS')
+        self.baudrate = int(os.getenv('DNMS_BAUDRATE', '500000'))
+        self.logger.debug(f"DNMS DataSource config: device={self.device}, baudrate={self.baudrate}")
         self.ser = None
         self.connected = False
 

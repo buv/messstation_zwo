@@ -78,12 +78,17 @@ class MqttDataSink(DataSink, abc.ABC):
                 clean_session=True,
                 userdata=None,
                 protocol=mqtt.MQTTv311,
-                transport="tcp",
-                callback_api_version=mqtt.CallbackAPIVersion.VERSION2
+                transport="tcp"
             )
+            
             mqtt_server = self.mqtt_server.split(':')
             self.client.connect(mqtt_server[0], int(mqtt_server[1]), 60)
             self.client.loop_start()
+            
+            # Wait for MQTT connection to be fully established
+            import time
+            time.sleep(1.0)
+            
             self.logger.info("Connected to MQTT broker.")
             self.connected = True
         except Exception as e:
@@ -115,6 +120,7 @@ class MqttDataSink(DataSink, abc.ABC):
         
         timestamp_ns = int(time.time() * 1_000_000_000)
         station_id = self.config.get('DFLD_STATION_ID', '')
+        self.logger.debug(f"Station ID: '{station_id}', Metadata dict: {metadata_dict}")
         if not station_id:
             self.logger.error("DFLD_STATION_ID not set, skipping metadata transmission")
             return
@@ -131,7 +137,10 @@ class MqttDataSink(DataSink, abc.ABC):
                     "ts": timestamp_ns
                 }
                 
-                self.client.publish(self.meta_topic, json.dumps(meta_message))
+                json_message = json.dumps(meta_message)
+                self.logger.debug(f"Publishing to {self.meta_topic}: {json_message}")
+                result = self.client.publish(self.meta_topic, json_message)
+                result.wait_for_publish(timeout=2.0)
                 self.logger.info(f"Published metadata to topic {self.meta_topic}: {key}={value}")
         except Exception as e:
             self.logger.error(f"Failed to publish metadata: {e}")
