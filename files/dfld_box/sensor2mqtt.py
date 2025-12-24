@@ -15,13 +15,14 @@ import subprocess
 import smbus3 as smbus
 import serial.tools.list_ports
 import socket
-from dfld import DataSink, MqttDataSink
+from dfld import DataSink, MqttDataSink, SSD1306DataSink
 from dfld import (
     Bme280DataSource, 
     DNMSi2cDataSource, 
     AkModulDataSource, 
     DNMSDataSource,
-    UdpDataSource
+    UdpDataSource,
+    MqttDataSource
 )
 from dfld import EventLoop
 
@@ -269,24 +270,97 @@ def publish_system_metadata():
                         try:
                             geo_data[key] = float(value)
                         except ValueError:
-                            pass
+                            logger.warning(f"Invalid numeric value for {key}: {value}")
                     else:
                         geo_data[key] = value
             
-            # Publish all geo data at once
             if geo_data:
                 geo_sink.write_meta(geo_data)
             
             logger.info("System and geo metadata published successfully")
             
-            # Close connections
-            system_sink.close()
-            if geo_data:
-                geo_sink.close()
-            
         except Exception as e:
-            logging.error(f"Error publishing system metadata: {e}")
+            logger.error(f"Failed to publish system/geo metadata: {e}")
+        finally:
+            # Close connections
+            try:
+                system_sink.close()
+                geo_sink.close()
+            except:
+                pass
     
+    import threading
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread
+
+
+def display_monitor():
+    """
+    Monitor I2C bus for SSD1306 display and handle data display.
+    Runs in a separate thread with hot-plug support.
+    """
+    def run():
+        import smbus3 as smbus
+        import time
+        
+        logger = logging.getLogger('display')
+        display_sink = None
+        mqtt_source = None
+        last_check = 0
+        check_interval = 30  # Check for display every 30 seconds
+        
+        while True:
+            try:
+                current_time = time.time()
+                
+                # Check for display availability periodically
+                if current_time - last_check > check_interval:
+                    try:
+                        bus = smbus.SMBus(1)
+                        bus.read_byte(0x3c)  # SSD1306 address
+                        bus.close()
+                        
+                        # Display found - initialize if not already done
+                        if not display_sink or not display_sink.connected:
+                            logger.info("SSD1306 display detected, initializing...")
+                            display_sink = SSD1306DataSink()
+                            display_sink.connect()
+                            
+                            if not mqtt_source:
+                                mqtt_source = MqttDataSource()
+                                # Use different client ID to receive own messages
+                                mqtt_source.client_id = f"{MODULE_NAME}-display-{os.getpid()}"
+                                mqtt_source.init()
+                                
+                    except Exception as e:
+                        if display_sink and display_sink.connected:
+                            logger.info("SSD1306 display disconnected")
+                            display_sink.connected = False
+                        display_sink = None
+                        
+                    last_check = current_time
+                
+                # Display data if display is available
+                if display_sink and display_sink.connected and mqtt_source:
+                    try:
+                        data = mqtt_source.read()
+                        if data:
+                            logger.debug(f"Received MQTT data for display: {data}")
+                            display_sink.write(json.dumps(data))
+                        else:
+                            logger.debug("No MQTT data received for display")
+                    except Exception as e:
+                        logger.debug(f"Display write error: {e}")
+                        display_sink.connected = False
+                        
+                time.sleep(0.2)  # Display update interval
+                
+            except Exception as e:
+                logger.error(f"Display monitor error: {e}")
+                time.sleep(5)
+    
+    import threading
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
     return thread
@@ -393,6 +467,10 @@ def main():
     
     # Start system metadata publishing (one-time)
     system_thread = publish_system_metadata()
+    
+    # Start display monitor (hot-plug support)
+    display_thread = display_monitor()
+    logger.info("Started display monitor with hot-plug support")
     
     # Keep main thread alive
     try:

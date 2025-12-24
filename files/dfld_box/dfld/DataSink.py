@@ -71,6 +71,7 @@ class MqttDataSink(DataSink, abc.ABC):
 
     def connect(self):
         import paho.mqtt.client as mqtt
+        import time
         try:
             self.logger.info(f"Connecting to MQTT broker at {self.mqtt_server}...")
             self.client = mqtt.Client(
@@ -85,12 +86,16 @@ class MqttDataSink(DataSink, abc.ABC):
             self.client.connect(mqtt_server[0], int(mqtt_server[1]), 60)
             self.client.loop_start()
             
-            # Wait for MQTT connection to be fully established
-            import time
-            time.sleep(1.0)
+            # Wait for connection with retry
+            for i in range(10):
+                if self.client.is_connected():
+                    self.connected = True
+                    self.logger.info("Connected to MQTT broker.")
+                    return
+                time.sleep(0.5)
             
-            self.logger.info("Connected to MQTT broker.")
-            self.connected = True
+            self.logger.error("MQTT connection timeout")
+            self.connected = False
         except Exception as e:
             self.logger.error(f"Failed to connect to MQTT broker: {e}")
             self.connected = False
@@ -195,6 +200,15 @@ class SSD1306DataSink(DataSink):
             
             self.connected = True
             self.logger.info("SSD1306 display initialized successfully.")
+            
+            # Test display with startup message
+            try:
+                with self.canvas(self.display) as draw:
+                    draw.text((10, 10), "DFLD", font=self.ImageFont.load_default(), fill="white")
+                    draw.text((10, 30), "Starting...", font=self.ImageFont.load_default(), fill="white")
+                self.logger.info("Display test pattern shown")
+            except Exception as e:
+                self.logger.error(f"Failed to show test pattern: {e}")
 
             # Try to load a large font sized for 3-digit values to fill display
             # For 128x64 display and format "XXX.X"

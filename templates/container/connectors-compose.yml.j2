@@ -182,36 +182,6 @@ services:
       - network
 {% endif %}
 
-{% if hw_conf["SSD1306_AVAILABLE"]==1 %}
-  mqtt2display:
-    image: dfld_box
-    restart: unless-stopped
-    container_name: mqtt2display
-    entrypoint: python /dfld/mqtt2display.py
-    environment:
-      - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl/#
-      - READOUT_INTERVAL=0.2
-      - MQTT_READ_TIMEOUT=2.0
-      - DISPLAY_TIMEOUT=2.0
-      - PROCESS_EMPTY=1
-      - I2C_BUS=1
-      - SSD1306_I2C_ADDR=0x3C
-      - SSD1306_WIDTH=128
-      - SSD1306_HEIGHT=64
-      - TZ=${TZ}
-      - LOG_LEVEL=INFO
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=mqtt2display
-      - homepage.icon=/icons/microphone-voice-icon.svg
-      - homepage.description=Display noise data on SSD1306
-      - homepage.showStats=true
-    networks:
-      - network
-    privileged: true
-{% endif %}
-
 networks:
     network:
         name: dfld_network
