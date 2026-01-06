@@ -129,13 +129,15 @@ if USE_TLS:
                 certfile=client_cert,
                 keyfile=client_key,
                 cert_reqs=ssl.CERT_REQUIRED,
-                tls_version=ssl.PROTOCOL_TLS
+                tls_version=ssl.PROTOCOL_TLS,
+                ciphers='AES128-SHA256:AES256-SHA256:AES128-GCM-SHA256:AES256-GCM-SHA384'
             )
         else:
             remote_client.tls_set(
                 ca_certs=ca_cert,
                 cert_reqs=ssl.CERT_REQUIRED,
-                tls_version=ssl.PROTOCOL_TLS
+                tls_version=ssl.PROTOCOL_TLS,
+                ciphers='AES128-SHA256:AES256-SHA256:AES128-GCM-SHA256:AES256-GCM-SHA384'
             )
         
         # Disable hostname verification for self-signed certificates if needed
