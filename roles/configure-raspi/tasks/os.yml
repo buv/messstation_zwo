@@ -15,6 +15,7 @@
       - python3-pip
       - python3-psycopg2
       - netcat-openbsd
+      - jq
       - yq
     state: present
 
@@ -39,6 +40,26 @@
     group: root
     mode: '0644'
   register: cmdline_txt_changed
+
+- name: Install lazydocker (latest version)
+  shell: |
+    set -e
+    DPKG_ARCH=$(dpkg --print-architecture)
+    case $DPKG_ARCH in
+      amd64) ARCH="x86_64" ;;
+      arm64) ARCH="arm64" ;;
+      armhf) ARCH="armv7" ;;
+      armel) ARCH="armv6" ;;
+      i386) ARCH="x86" ;;
+      *) echo "Unsupported: $DPKG_ARCH"; exit 1 ;;
+    esac
+    LATEST=$(curl -s https://api.github.com/repos/jesseduffield/lazydocker/releases/latest | jq -r .tag_name)
+    URL="https://github.com/jesseduffield/lazydocker/releases/download/${LATEST}/lazydocker_${LATEST#v}_Linux_${ARCH}.tar.gz"
+    echo "Downloading: $URL"
+    curl -fsSL "$URL" | tar xz -C /usr/local/bin lazydocker
+    chmod +x /usr/local/bin/lazydocker
+  args:
+    creates: /usr/local/bin/lazydocker
 
 - name: Set reboot required if cmdline.txt changed
   ansible.builtin.file:
