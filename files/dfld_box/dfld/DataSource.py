@@ -113,6 +113,7 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
             self.logger.info("DNMS i2c sensor initialized.")
             self.connected = True
             self.metadata["dnms_firmware"] = version
+            self.metadata["dnms_microphone"] = self.microphone
         except Exception as e:
             self.logger.error(f"Failed to initialize DNMS i2c sensor: {e}")
             self.connected = False
