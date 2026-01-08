@@ -28,7 +28,7 @@ services:
       - DNMS_I2C_ADDRESS=0x55
       - BME280_I2C_ADDRESS=0x76
       - I2C_BUS=1
-      - DNMS_MICROPHONE_TYPE=28
+      - DNMS_MICROPHONE_TYPE=${DNMS_MICROPHONE_TYPE:-28}
       # UDP config
       - UDP_LISTEN_PORT=11883
       # System metadata config

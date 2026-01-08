@@ -80,9 +80,9 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
     def __init__(self):
         super().__init__()
         self.metadata["device"] = "dnms_i2c"
-        self.i2c_addr = int(self.config.get('DNMS_I2C_ADDR', '0x55'), 16)
+        self.i2c_addr = int(self.config.get('DNMS_I2C_ADDR', '0x55'), 0)
         self.bus_num = int(self.config.get('I2C_BUS', '1'))
-        self.microphone = int(os.getenv('DNMS_MICROPHONE_TYPE', '28'))
+        self.microphone = int(os.getenv('DNMS_MICROPHONE_TYPE', '28'), 0)
         self.logger.debug(f"DNMS i2c DataSource config: i2c_addr={hex(self.i2c_addr)}, bus_num={self.bus_num}")
         self.bus = None
         self.calibration_params = None
