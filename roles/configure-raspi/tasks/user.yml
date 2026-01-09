@@ -13,7 +13,7 @@
     state: present
   register: dfld_user_info
 
-- name: Create a directory for portainer and all DFLD data
+- name: Create a directory for all DFLD data
   become: true
   ansible.builtin.file:
     name: "{{ dfld_dir }}"

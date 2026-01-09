@@ -23,8 +23,6 @@
         docker_users:
           - "{{ dfld_user }}"
     - role: build-images
-    - role: portainer
-      when: deployment_mode == "full"
     - role: detect_hardware
     - role: deploy_container
     - role: configure-postgres
@@ -57,7 +55,6 @@
           - ''
           - 'We setup a dashboard for you at: http://{{ messstation_fqdn }}'
           - ''
-          - 'You can access the portainer services at: https://{{ messstation_fqdn }}:9443 with User: {{ portainer_username }} / Password: {{ portainer_password }}'
           - 'You can access the grafana services at: http://{{ messstation_fqdn }}:3000 with User: {{ grafana_username }} / Password: {{ grafana_password }}'
           - 'You can access the pgadmin services at: http://{{ messstation_fqdn }}:8083 with User: {{ pgadmin_email }} / Password: {{ pgadmin_password }}'
           - ''
@@ -133,4 +130,5 @@
           - 'REBOOT REQUIRED!'
           - 'Please reboot the system manually: sudo reboot'
           - '------------------------------------------------------------------------------------------------------'
+          - ''
           - ''
