@@ -170,6 +170,10 @@ services:
       - MQTT_BRIDGED_BROKER=${MQTT_BRIDGED_BROKER}
       - MQTT_BRIDGED_RENAME=${MQTT_BRIDGED_RENAME}
       - MQTT_BRIDGED_TLS=${MQTT_BRIDGED_TLS}
+      - MQTT_TLS_CA_CERT=/mqtt-certs/ca-cert.pem
+      - MQTT_TLS_CLIENT_CERT=/mqtt-certs/client-cert.pem
+      - MQTT_TLS_CLIENT_KEY=/mqtt-certs/client-key.pem
+      - MQTT_TLS_INSECURE=false
       - LOG_LEVEL=INFO
     volumes:
       - /etc/ssl/certs:/etc/ssl/certs:ro

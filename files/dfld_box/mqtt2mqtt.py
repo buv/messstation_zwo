@@ -6,7 +6,6 @@ Replaces: connection to_central_broker in mosquitto.conf
 import os
 import sys
 import time
-import socket
 import logging
 import ssl
 from paho.mqtt import client as mqtt
@@ -61,35 +60,9 @@ except Exception as e:
     logging.error(f'Invalid MQTT_BRIDGED_BROKER format: {REMOTE_MQTT}')
     sys.exit(1)
 
-# DNS resolution with periodic refresh
-remote_ip = None
-last_dns_lookup = 0
-DNS_REFRESH_INTERVAL = 3600  # 1 hour
-
-def resolve_remote_dns():
-    global remote_ip, last_dns_lookup
-    socket.setdefaulttimeout(2.0)
-    try:
-        new_ip = socket.gethostbyname(remote_host)
-        if new_ip != remote_ip:
-            logging.info(f'DNS changed: {remote_host} {remote_ip} -> {new_ip}')
-            remote_ip = new_ip
-        else:
-            logging.debug(f'DNS unchanged: {remote_host} -> {remote_ip}')
-        last_dns_lookup = time.time()
-        return True
-    except socket.gaierror as e:
-        logging.warning(f'DNS lookup failed for {remote_host}: {e}')
-        return False
-    finally:
-        socket.setdefaulttimeout(None)
-
-# Initial DNS lookup
-if not resolve_remote_dns():
-    logging.error('Initial DNS lookup failed, exiting')
-    sys.exit(1)
-
-logging.info(f'Resolved {remote_host} to {remote_ip}:{remote_port}')
+# Note: No manual DNS resolution - let the MQTT client and OS handle it
+# This is especially important for TLS connections where hostname verification is required
+logging.info(f'Remote MQTT target: {remote_host}:{remote_port}')
 
 # Local MQTT client (subscriber)
 local_client = mqtt.Client(
@@ -158,7 +131,7 @@ def on_remote_connect(cli, userdata, flags, reason_code, properties):
     rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
     remote_connected = (rc == 0)
     if remote_connected:
-        logging.info(f'Remote MQTT connected to {remote_ip}:{remote_port} (dropped {dropped_messages} messages while disconnected)')
+        logging.info(f'Remote MQTT connected to {remote_host}:{remote_port} (dropped {dropped_messages} messages while disconnected)')
         dropped_messages = 0
     else:
         # MQTT error codes: https://github.com/eclipse/paho.mqtt.python/blob/master/src/paho/mqtt/client.py
@@ -173,13 +146,11 @@ def on_remote_connect(cli, userdata, flags, reason_code, properties):
         logging.error(f'Remote MQTT connection failed: {error_msg}')
 
 def on_remote_disconnect(cli, userdata, disconnect_flags, reason_code, properties):
-    global remote_connected, last_dns_lookup
+    global remote_connected
     remote_connected = False
     rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
     if rc != 0:
         logging.warning(f'Remote MQTT disconnected (rc={rc}), will auto-reconnect')
-        # Force DNS refresh on disconnect
-        last_dns_lookup = 0
 
 def on_remote_log(cli, userdata, level, buf):
     # Log all paho messages with appropriate level
@@ -256,10 +227,10 @@ local_client.connect_async(local_host, int(local_port), keepalive=60)
 local_client.loop_start()
 
 try:
-    # Use hostname for TLS (certificate verification), IP for non-TLS
-    connect_host = remote_host if USE_TLS else remote_ip
-    logging.info(f'Attempting connection to remote MQTT at {connect_host}:{remote_port} (TLS: {USE_TLS})...')
-    remote_client.connect_async(connect_host, remote_port, keepalive=60)
+    # Always use hostname - let the OS handle DNS resolution
+    # This is required for TLS certificate verification and simplifies the code
+    logging.info(f'Attempting connection to remote MQTT at {remote_host}:{remote_port} (TLS: {USE_TLS})...')
+    remote_client.connect_async(remote_host, remote_port, keepalive=60)
     remote_client.loop_start()
     logging.info(f'MQTT bridge running with {len(mappings)} mapping(s)')
 except Exception as e:
@@ -268,7 +239,7 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 
-# Keep alive with periodic DNS refresh and stats
+# Keep alive with periodic stats logging
 try:
     while True:
         time.sleep(60)
@@ -277,17 +248,6 @@ try:
         if time.time() - last_stats_log > 600:
             logging.info(f'Stats: forwarded={forwarded_messages}, dropped={dropped_messages}, connected={remote_connected}')
             last_stats_log = time.time()
-        
-        # Periodic DNS refresh
-        if time.time() - last_dns_lookup > DNS_REFRESH_INTERVAL:
-            logging.debug('Periodic DNS refresh')
-            old_ip = remote_ip
-            if resolve_remote_dns() and old_ip != remote_ip:
-                # DNS changed, reconnect
-                logging.info('DNS changed, reconnecting to remote MQTT')
-                remote_client.disconnect()
-                time.sleep(1)
-                remote_client.connect_async(remote_ip, remote_port, keepalive=60)
 except KeyboardInterrupt:
     logging.info('Shutting down')
     local_client.loop_stop()
