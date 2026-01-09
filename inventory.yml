@@ -27,9 +27,6 @@ all:
     dfld_dir: "/opt/dfld"
     conf_dir: "/boot/firmware"
 
-    portainer_username: "{{ dfld_user }}"
-    portainer_password: "{{ dfld_user }}{{ dfld_user }}{{ dfld_user }}"
-
     grafana_username: "{{ dfld_user }}"
     grafana_password: "{{ dfld_user }}"
 
@@ -50,4 +47,3 @@ all:
     ansible_sudo_pass: "{{ dfld_user }}"
     ansible_user: "{{ dfld_user }}"
     ansible_ssh_pass: "{{ dfld_user }}"
-

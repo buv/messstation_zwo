@@ -46,10 +46,10 @@ Die Version Full enthält alle Funktionen der Version Mini und unterstützt zus�
 - SSH-Logins freigegeben falls Messstation ZWO auf Remote Raspberry Pi installiert werden soll.
 - Fingerprint des Remote Raspis in den lokalen known_keys. Alternative kann `host_key_checking` in  Zeile 5 in der ansible.cfg ausgeschaltet werden.
 - inventory.yml aus der .example Datei erzeugen.
-- In der Datei inventory.yml können bzw. müssen die Default User und Passwörter für Portainer, Grafana und InfluxDB angepasst werden.
+- In der Datei inventory.yml können bzw. müssen die Default User und Passwörter für Grafana und InfluxDB angepasst werden.
 - Bei einer Remote-Installation müssen die Zugangsdaten für den User auf dem Remote Raspberry PI, der die Ansible Tasks ausführt eingerichtet werden. Dabei kann Username, sudo- und ssh-Password gesetzt werden. Es wird allerdings empfohlen für die Authentifizierung ein ssh Schlüsselpaar zu verwenden.
 - Benötigt, bei einer lokalen Installation, der User, der das Playbook ausführt, ein Password für sudo, so kann dies in der inventory.yml eingetragen werden. 
-- In der inventory.yml können/müssen vor Ausführung noch die Passwörter für die Admin-Accounts von Portainer, Grafana und der InfluxDB gesetzt werden. Die Passwörter sind freiwählbar, werden während der Installation gesetzt. Nach der Installation 
+- In der inventory.yml können/müssen vor Ausführung noch die Passwörter für die Admin-Accounts von Grafana und der InfluxDB gesetzt werden. Die Passwörter sind freiwählbar, werden während der Installation gesetzt. Nach der Installation 
 - .gitignore ist so konfiguriert, das weder ansible.cfg noch inventory.yml nach git publiziert werden können.
 - Starten des Playbooks mit dem Befehl: `./install_messstation.sh` 
 
