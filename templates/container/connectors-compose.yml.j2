@@ -188,6 +188,51 @@ services:
       - network
 {% endif %}
 
+{% if deployment_mode == "full" and hw_conf["ADSB_AVAILABLE"] == 1 %}
+  adsb2mqtt:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: adsb2mqtt
+    entrypoint: python /dfld/adsb2mqtt.py
+    environment:
+      - DFLD_STATION_ID=${DFLD_REGION}-${DFLD_STATION}
+      - MQTT_SERVER=${MQTT_SERVER}
+      - MQTT_TOPIC=dfld/adsb/beast
+      - BEAST_HOST=ultrafeeder
+      - BEAST_PORT=30005
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=adsb2mqtt
+      - homepage.icon=/icons/flight-landing-icon.svg
+      - homepage.description=Forward Beast Binary to MQTT
+      - homepage.showStats=true
+    networks:
+      - network
+
+  detect_flyover:
+    image: dfld_box
+    restart: unless-stopped
+    container_name: detect_flyover
+    entrypoint: python /dfld/detect_flyover.py
+    environment:
+      - POSTGRES_USERNAME=${POSTGRES_ADMIN_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+      - POSTGRES_SERVER=${POSTGRES_SERVERNAME}:${POSTGRES_SERVERPORT}
+      - DUMP1090_SERVER=${DUMP1090_SERVERNAME}:${DUMP1090_SERVERPORT}
+      - STATION_POSITION=${STATION_LON}:${STATION_LAT}:${STATION_ALT}
+      - LOG_LEVEL=INFO
+    labels:
+      - homepage.group=Infrastructure
+      - homepage.name=detect_flyover
+      - homepage.icon=/icons/flight-landing-icon.svg
+      - homepage.description=We get the noise
+      - homepage.showStats=true
+    networks:
+      - network
+{% endif %}
+
 networks:
     network:
         name: dfld_network

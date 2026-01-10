@@ -179,15 +179,15 @@ def on_local_message(cli, userdata, msg):
     # Try to match topic against all mappings
     remote_topic = None
     for local_prefix, remote_prefix in mappings:
-        if msg.topic.startswith(local_prefix):
-            # Rewrite topic: replace local_prefix with remote_prefix
-            if msg.topic == local_prefix:
-                # Exact match, no suffix
-                remote_topic = remote_prefix
-            elif msg.topic.startswith(local_prefix + '/'):
-                # Has suffix after prefix
-                suffix = msg.topic[len(local_prefix) + 1:]  # +1 to skip the '/'
-                remote_topic = f'{remote_prefix}/{suffix}'
+        # Check if topic matches prefix
+        if msg.topic == local_prefix:
+            # Exact match
+            remote_topic = remote_prefix
+            break
+        elif msg.topic.startswith(local_prefix + '/'):
+            # Has suffix after prefix
+            suffix = msg.topic[len(local_prefix):]  # Keep the leading /
+            remote_topic = remote_prefix + suffix
             break
     
     if not remote_topic:

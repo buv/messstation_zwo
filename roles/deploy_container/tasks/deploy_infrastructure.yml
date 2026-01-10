@@ -1,6 +1,6 @@
 ---
 
-- name: Create adsb folder
+- name: Create infrastructure folder
   ansible.builtin.file:
     path: "{{ dfld_dir }}/infrastructure"
     owner: "{{ dfld_user_info.uid }}"

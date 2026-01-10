@@ -1,4 +1,5 @@
 .vscode
+.amazonq
 inventory_*
 dfld.yml
 ansible.cfg
