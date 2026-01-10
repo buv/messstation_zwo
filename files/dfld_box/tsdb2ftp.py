@@ -9,15 +9,15 @@ import pathlib
 import datetime
 
 import pytz
+import requests
 
-from influxdb import InfluxDBClient
 from dfld.util import calc_crc, deobfuscate_string
 
 level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO 
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
 
 missing_env = []
-for k in "INFLUXDB_SERVER INFLUXDB_USERNAME INFLUXDB_PASSWORD INFLUXDB_DATABASE INFLUXDB_MEASUREMENT DFLD_STATION DFLD_REGION DFLD_LEGACY DFLD_CKSUM TZ".split():
+for k in "INFLUXDB_SERVER INFLUXDB_DATABASE INFLUXDB_MEASUREMENT DFLD_STATION DFLD_REGION DFLD_LEGACY DFLD_CKSUM TZ".split():
     if k not in os.environ:
         missing_env.append(k)
 if len(missing_env)>0:
@@ -37,51 +37,46 @@ def delta_t(t1_str, t2_datetime):
     return delta.total_seconds()
 
 
-def map_one_day(start_date, res, full_transfer):
+def map_one_day(start_date, values, full_transfer):
     """
-    map one day of data from influxdb to a 1Hz data array
+    map one day of data to a 1Hz data array
     :param start_date: start date of the day
-    :param res: result from influxdb query
+    :param values: list of [timestamp, value] pairs
     :param full_transfer: if True, transfer all data from yesterday
     :return: data array with 1Hz data
     """
     
-    # check if result is empty
-    if len(res.raw['series']) == 0:
+    if len(values) == 0:
         logging.warning('no data found for date %s', start_date)
         return None
     
-    # fill data array for one day
-    src = res.raw['series'][0]['values']
     t0 = start_date
 
     if full_transfer:
         n_day = 86400
     else:
-        # calculate the number of seconds from start date to last measurement
-        last_time = datetime.datetime.fromisoformat(src[-1][0])
+        last_time = datetime.datetime.fromisoformat(values[-1][0].replace('Z', '+00:00'))
         n_day = int((last_time - t0).total_seconds()) + 1    
 
-    n_src = len(src)
+    n_src = len(values)
     dst_idx = 0
     src_idx = 0
     times = [0] * n_src
-    values = [0] * n_src
+    vals = [0] * n_src
     data = [0] * 86400
-    for idx, v in enumerate(src):
-        times[idx] = datetime.datetime.fromisoformat(v[0])
+    
+    for idx, v in enumerate(values):
+        times[idx] = datetime.datetime.fromisoformat(v[0].replace('Z', '+00:00'))
         val = round(v[1])
         val = min(val, 255)
         val = max(val, 0)
-        values[idx] = int(val)
+        vals[idx] = int(val)
 
     while dst_idx < n_day:
         t_idx = t0 + datetime.timedelta(seconds=dst_idx)
-        # find closest measurment to bin time t_idx,
-        # skip forward while second (later) value is closer
         while src_idx+1 < n_src and abs(times[src_idx]-t_idx) > abs(times[src_idx+1]-t_idx):
             src_idx += 1
-        data[dst_idx] = values[src_idx]
+        data[dst_idx] = vals[src_idx]
         dst_idx += 1
 
     return data
@@ -89,13 +84,12 @@ def map_one_day(start_date, res, full_transfer):
 
 def get_data(now_dt, full_transfer):
     """
-    get data from influxdb v1
+    get data from VictoriaMetrics via HTTP
     :param now_dt: datetime object
     :param full_transfer: if True, transfer all data from yesterday
     :return: bytearray with data
     """
     
-    # if full_transfer is True, set date_str to yesterday
     if full_transfer:
         yesterday = now_dt - datetime.timedelta(days=1)
         date_str = yesterday.strftime('%Y-%m-%d')
@@ -103,51 +97,59 @@ def get_data(now_dt, full_transfer):
         date_str = now_dt.strftime('%Y-%m-%d')
 
     try:
-        # create connection to influxdb v1
         logging.info('connecting to influx database (%s)...', os.environ["INFLUXDB_SERVER"])
-        influxdb_server = os.environ["INFLUXDB_SERVER"].split(':')
-        client = InfluxDBClient(
-            host=influxdb_server[0],
-            port=influxdb_server[1],
-            username=os.environ["INFLUXDB_USERNAME"],
-            password=os.environ["INFLUXDB_PASSWORD"]
-        )
-        logging.debug('client=%s', client)
-        client.switch_database(os.environ["INFLUXDB_DATABASE"])
-        logging.debug('switched to database "%s"', os.environ["INFLUXDB_DATABASE"])
+        host = os.environ["INFLUXDB_SERVER"].split(':')[0]
+        base_url = f"http://{host}:8428"
+        
+        measurement = os.environ["INFLUXDB_MEASUREMENT"]
+        tz = os.environ['TZ']
+        
+        query = (f"SELECT dB_A_avg FROM {measurement} WHERE "
+                 f"time >= '{date_str}T00:00:00Z' AND "
+                 f"time < '{date_str}T23:59:59Z'")
+        
+        params = {
+            'db': os.environ["INFLUXDB_DATABASE"],
+            'q': query
+        }
+        
+        logging.debug('HTTP query: %s', query)
+        response = requests.get(f"{base_url}/query", params=params, timeout=10)
+        
+        if response.status_code != 200:
+            logging.error('query failed with status %s: %s', response.status_code, response.text)
+            return None
+            
+        result = response.json()
+        
+        if 'results' not in result or len(result['results']) == 0:
+            logging.warning('no results for date %s', date_str)
+            return None
+            
+        if 'series' not in result['results'][0] or len(result['results'][0]['series']) == 0:
+            logging.warning('no data found for date %s', date_str)
+            return None
+            
+        series = result['results'][0]['series'][0]
+        values = series['values']
+        
+        logging.debug('number of points in result: %s', len(values))
+
+        local_tz = pytz.timezone(tz)
+        day = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+        day_start = local_tz.localize(day).astimezone(pytz.utc)
+
+        data = map_one_day(day_start, values, full_transfer)
+        bb = None
+        if data:
+            bb = bytearray(data)
+            bb.extend([calc_crc(data) & 0xff, 0x00])
+            logging.debug('length of bytebuffer: %s', len(bb))
+        return bb
+        
     except Exception as e:
-        logging.error('failed to connect to influxdb: %s', e)
+        logging.error('failed to get data: %s', e)
         return None
-    
-    measurement = os.environ["INFLUXDB_MEASUREMENT"]
-
-    # read one day of data from influxdb v1
-    # local time zone calculation is done by database
-    tz = os.environ['TZ']
-    query = (f"SELECT dB_A_avg FROM {measurement} WHERE "
-             f"time >= ('{date_str}' -     1s) AND "
-             f"time <  ('{date_str}' + 86400s) "
-             f"tz('{tz}')")
-    logging.debug('SQL query: %s', query)
-    result = client.query(query)
-    if len(result.raw["series"]) == 0:
-        logging.warning('no data found for date %s', date_str)
-        return None
-    logging.debug('number of points in result: %s', len(result.raw["series"][0]["values"]))
-
-    # manual calculation of local timezone for postgresql
-    # set local time zone 
-    local_tz = pytz.timezone(tz)
-    day = datetime.datetime.strptime(date_str, '%Y-%m-%d')
-    day_start = local_tz.localize(day).astimezone(pytz.utc)
-
-    data = map_one_day(day_start, result, full_transfer)
-    bb = None
-    if data:
-        bb = bytearray(data)
-        bb.extend([calc_crc(data) & 0xff, 0x00])
-        logging.debug('length of bytebuffer: %s', len(bb))
-    return bb
  
 
 def check_for_transfer():

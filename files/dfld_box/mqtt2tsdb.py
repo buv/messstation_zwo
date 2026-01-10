@@ -6,9 +6,9 @@ import signal
 import sys
 import time
 import logging
+import requests
 from types import SimpleNamespace
 from paho.mqtt import client as mqtt
-from influxdb import InfluxDBClient
 
 # Derive module name for MQTT client ID base
 MODULE_NAME = os.path.basename(__file__).replace('.py', '')
@@ -22,41 +22,25 @@ def main():
         "qos": int(os.getenv("MQTT_QOS", 0)),
         "keepalive": int(os.getenv("MQTT_KEEPALIVE", 60)),
         "client_id": f"{MODULE_NAME}-{os.getpid()}",
-        "influxdb_server": os.getenv("INFLUXDB_SERVER", "influxdb:8086"),
-        "influxdb_username": os.getenv("INFLUXDB_USERNAME", None),
-        "influxdb_password": os.getenv("INFLUXDB_PASSWORD", None),
+        "influxdb_server": os.getenv("INFLUXDB_SERVER", "victoriametrics:8428"),
         "influxdb_database": os.getenv("INFLUXDB_DATABASE", "dfld"),
     })
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=config.log_level)
     logging.info(f"Configuration: {config}")
     
-    # create connection to influxdb v1
-    host, port = config.influxdb_server.split(':')
-    port = int(port)
-    logging.info(f'Connecting to InfluxDB at {host}:{port}...')
-    influx_client = InfluxDBClient(host=host, port=port, username=config.influxdb_username, password=config.influxdb_password) 
-    try:
-        influx_client.ping()
-        logging.info("Connected to InfluxDB.")
-    except Exception as e:
-        logging.error(f"Failed to connect to InfluxDB: {e}")
-        sys.exit(1)
-
-    # Ensure database exists
-    databases = influx_client.get_list_database()
-    if not any(db['name'] == config.influxdb_database for db in databases):
-        logging.info(f"Database '{config.influxdb_database}' does not exist. Creating...")
-        influx_client.create_database(config.influxdb_database)
-    influx_client.switch_database(config.influxdb_database)
-    logging.info(f"Using InfluxDB database: {config.influxdb_database}")
+    # VictoriaMetrics HTTP endpoint (port 8428, not 8086)
+    host = config.influxdb_server.split(':')[0]
+    influx_url = f"http://{host}:8428/write?db={config.influxdb_database}"
+    logging.info(f'Using VictoriaMetrics at {host}:8428, database: {config.influxdb_database}')
         
     # MQTT-Client für MQTT v3.1.1 über TCP
     client = mqtt.Client(
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
         client_id=f"mqtt2tsdb-{os.getpid()}",
         clean_session=True,
         protocol=mqtt.MQTTv311,
-        transport="tcp",  # explizit TCP (kein WebSocket)
+        transport="tcp",
     )
     client.user_data_set(config)
 
@@ -64,7 +48,7 @@ def main():
     client.reconnect_delay_set(min_delay=1, max_delay=30)
 
     # keys to transfer as tags
-    tag_keys = ["source"]
+    tag_keys = ["station"]
 
     # Callback: Verbindung hergestellt → Topic abonnieren
     def on_connect(cli, userdata, flags, rc):
@@ -85,25 +69,35 @@ def main():
         try:
             data = json.loads(payload)
             if isinstance(data, dict):
-                ts = int(time.time() * 1e9)  # aktueller Zeitstempel in Nanosekunden
+                ts = int(time.time() * 1e9)
                 if "ts" in data:
                     ts = int(data["ts"])  
                     del data["ts"]  
-                # move tag keys to separate dict
+                
+                # Extract tags
                 tags = {k: str(data[k]) for k in tag_keys if k in data}
                 for k in tags.keys():
                     del data[k]
-               
-                json_body = [
-                    {
-                        "measurement": topic.split('/')[-1],  # letzter Teil des Topics als Messung
-                        "tags": tags,
-                        "fields": data,
-                        "time": ts
-                    }
-                ]
-                influx_client.write_points(json_body, time_precision='n', protocol='json')
-                logging.debug(f"Data written to InfluxDB: {json_body}")
+                
+                # Build tag string
+                measurement = topic.split('/')[-1]
+                tag_str = ",".join([f"{k}={v}" for k, v in tags.items()])
+                if tag_str:
+                    tag_str = "," + tag_str
+                
+                # Write each field as separate line (one field per line)
+                lines = []
+                for field_name, field_value in data.items():
+                    line = f"{measurement}{tag_str} {field_name}={field_value} {ts}"
+                    lines.append(line)
+                
+                # Write all lines in one request
+                payload = "\n".join(lines)
+                response = requests.post(influx_url, data=payload, timeout=5)
+                if response.status_code == 204:
+                    logging.debug(f"Data written to VictoriaMetrics: {len(lines)} fields")
+                else:
+                    logging.warning(f"Write failed with status {response.status_code}: {response.text}")
             else:
                 logging.warning(f"Received JSON is not a dict: {data}")
         except json.JSONDecodeError:

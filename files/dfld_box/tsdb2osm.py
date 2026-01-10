@@ -41,8 +41,6 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=leve
 # Required environment variables
 REQUIRED_ENV_VARS = [
     'INFLUXDB_SERVER',
-    'INFLUXDB_USERNAME',
-    'INFLUXDB_PASSWORD',
     'OSM_STATION_ID',
     'OSM_SENSORS',
     'OSM_API_KEY'
@@ -120,9 +118,7 @@ def get_influxdb_client(database: str) -> Optional[InfluxDBClient]:
         influxdb_server = os.environ['INFLUXDB_SERVER'].split(':')
         client = InfluxDBClient(
             host=influxdb_server[0],
-            port=int(influxdb_server[1]),
-            username=os.environ['INFLUXDB_USERNAME'],
-            password=os.environ['INFLUXDB_PASSWORD']
+            port=int(influxdb_server[1])
         )
         client.switch_database(database)
         logging.debug('Connected to InfluxDB database: %s', database)

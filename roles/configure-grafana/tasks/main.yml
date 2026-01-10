@@ -22,10 +22,8 @@
     grafana_url: "http://localhost:3000/"
     grafana_user: "{{ grafana_username }}"
     grafana_password: "{{ grafana_password }}"
-    user: "{{ influxdb_username }}"
-    password: "{{ influxdb_password }}"
     ds_type: "influxdb"
-    ds_url: "http://influxdb:8086/"
+    ds_url: "http://victoriametrics:8428/"
     database: "dfld"
     uid: "cectojnfyi3ggd"
 
@@ -70,10 +68,8 @@
     grafana_url: "http://localhost:3000/"
     grafana_user: "{{ grafana_username }}"
     grafana_password: "{{ grafana_password }}"
-    user: "{{ influxdb_username }}"
-    password: "{{ influxdb_password }}"
     ds_type: "influxdb"
-    ds_url: "http://influxdb:8086/"
+    ds_url: "http://victoriametrics:8428/"
     database: "local_monitoring"
     uid: "def0lj80ybny8f"
 

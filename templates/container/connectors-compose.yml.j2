@@ -61,12 +61,10 @@ services:
     container_name: mqtt2tsdb
     entrypoint: python /dfld/mqtt2tsdb.py
     environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
       - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl/#
+      - MQTT_TOPIC=dfld/sensors/#
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     labels:
@@ -85,8 +83,6 @@ services:
     container_name: tsdb2ftp
     entrypoint: python /dfld/tsdb2ftp.py
     environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
       - INFLUXDB_DATABASE=${INFLUXDB_DATABASE}
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - INFLUXDB_MEASUREMENT=spl
@@ -112,7 +108,7 @@ services:
     entrypoint: python /dfld/mqtt2liveview.py
     environment:
       - MQTT_SERVER=${MQTT_SERVER}
-      - MQTT_TOPIC=dfld/sensors/noise/spl/#
+      - MQTT_TOPIC=dfld/sensors/#
       - DFLD_REGION=${DFLD_REGION}
       - DFLD_STATION=${DFLD_STATION}
       - DFLD_CKSUM=${DFLD_CKSUM}
@@ -136,8 +132,6 @@ services:
     container_name: tsdb2osm
     entrypoint: python /dfld/tsdb2osm.py
     environment:
-      - INFLUXDB_USERNAME=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
       - INFLUXDB_SERVER=${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
       - OSM_STATION_ID=${OSM_STATION_ID}
       - OSM_SENSORS=${OSM_SENSORS}

@@ -1,25 +1,23 @@
 services:
-  influxdb:
-    image: influxdb:1.11.8-alpine
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
     restart: unless-stopped
-    container_name: influxdb
+    container_name: victoriametrics
     networks:
       - network
     ports:
-      - 8086:8086
-      - 8088:8088
+      - 8428:8428
     volumes:
-      - influxdb-data:/var/lib/influxdb
-      - influxdb-config:/etc/influxdb
-    environment:
-      - INFLUXDB_DB=${INFLUXDB_DATABASE}
-      - INFLUXDB_ADMIN_USER=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_ADMIN_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      - victoriametrics-data:/victoria-metrics-data
+    command:
+      - "-storageDataPath=/victoria-metrics-data"
+      - "-retentionPeriod=10y"
+      - "-httpListenAddr=:8428"
     labels:
       - homepage.group=Infrastructure
-      - homepage.name=InfluxDB
-      - homepage.icon=influxdb.svg
-      - homepage.description=InfluxDB is 😎
+      - homepage.name=VictoriaMetrics
+      - homepage.icon=https://docs.victoriametrics.com/logo.webp
+      - homepage.description=Fast time-series database
       - homepage.showStats=true
 
   mqtt:
@@ -89,7 +87,7 @@ services:
       - grafana-data:/var/lib/grafana
       - grafana-provisioning:/etc/grafana/provisioning
     depends_on:
-      - influxdb
+      - victoriametrics
       - postgis
 
   mqtt-x:
@@ -165,8 +163,6 @@ services:
       - TZ=${TZ}
       - INFLUXDB_DB=${INFLUX_TELEGRAF_DATABASE}
       - INFLUXDB_URL=http://${INFLUXDB_SERVERNAME}:${INFLUXDB_SERVERPORT}
-      - INFLUXDB_USER=${INFLUX_ADMIN_USERNAME}
-      - INFLUXDB_USER_PASSWORD=${INFLUX_ADMIN_PASSWORD}
     user: ${UID}:${GID}
     ports:
       - 8125:8125
@@ -184,7 +180,7 @@ services:
       - ${DOCKER_EXTERNAL_ROOT}/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - influxdb
+      - victoriametrics
 
 {% if hw_conf["ADSB_AVAILABLE"] == 1 %}
   ultrafeeder:
@@ -241,8 +237,7 @@ services:
 {% endif %}
 
 volumes:
-  influxdb-data:
-  influxdb-config:
+  victoriametrics-data:
   mqtt-data:
   mqtt-log:
 {% if deployment_mode == "full" %}
