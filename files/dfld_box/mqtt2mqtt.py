@@ -82,20 +82,36 @@ remote_client = mqtt.Client(
 remote_client.reconnect_delay_set(min_delay=1, max_delay=30)
 
 # TLS configuration (matching mosquitto bridge)
+CERT_RETRY_INTERVAL = 300  # seconds between retries when waiting for certificates
 if USE_TLS:
+    ca_cert = os.getenv('MQTT_TLS_CA_CERT', '/etc/ssl/certs/ca-certificates.crt')
+    client_cert = os.getenv('MQTT_TLS_CLIENT_CERT', '')
+    client_key = os.getenv('MQTT_TLS_CLIENT_KEY', '')
+    insecure = os.getenv('MQTT_TLS_INSECURE', 'false').lower() in ['true', 'yes', '1']
+
+    logging.info(f'TLS Configuration:')
+    logging.info(f'  CA Certificate: {ca_cert}')
+    logging.info(f'  Client Certificate: {client_cert or "None"}')
+    logging.info(f'  Client Key: {client_key or "None"}')
+    logging.info(f'  Insecure Mode: {insecure}')
+
+    # Wait for certificate files to become available (e.g. mounted volume not yet ready)
+    cert_files = [ca_cert]
+    if client_cert:
+        cert_files.append(client_cert)
+    if client_key:
+        cert_files.append(client_key)
+
+    while True:
+        missing = [f for f in cert_files if not os.path.isfile(f)]
+        if not missing:
+            break
+        logging.warning(f'Waiting for TLS certificate(s): {", ".join(missing)} - retrying in {CERT_RETRY_INTERVAL}s')
+        time.sleep(CERT_RETRY_INTERVAL)
+
+    logging.info('All TLS certificate files found')
+
     try:
-        ca_cert = os.getenv('MQTT_TLS_CA_CERT', '/etc/ssl/certs/ca-certificates.crt')
-        client_cert = os.getenv('MQTT_TLS_CLIENT_CERT', '')
-        client_key = os.getenv('MQTT_TLS_CLIENT_KEY', '')
-        insecure = os.getenv('MQTT_TLS_INSECURE', 'false').lower() in ['true', 'yes', '1']
-        
-        logging.info(f'TLS Configuration:')
-        logging.info(f'  CA Certificate: {ca_cert}')
-        logging.info(f'  Client Certificate: {client_cert or "None"}')
-        logging.info(f'  Client Key: {client_key or "None"}')
-        logging.info(f'  Insecure Mode: {insecure}')
-        
-        # Client certificates are optional (for mutual TLS)
         if client_cert and client_key:
             remote_client.tls_set(
                 ca_certs=ca_cert,
@@ -110,8 +126,7 @@ if USE_TLS:
                 cert_reqs=ssl.CERT_REQUIRED,
                 tls_version=ssl.PROTOCOL_TLS_CLIENT
             )
-        
-        # Disable hostname verification for self-signed certificates if needed
+
         remote_client.tls_insecure_set(insecure)
         if insecure:
             logging.warning('TLS hostname verification DISABLED - use only for testing!')
