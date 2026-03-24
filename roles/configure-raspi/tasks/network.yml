@@ -1,0 +1,25 @@
+---
+
+- name: Create systemd service to apply network configuration on boot
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dfld-network-config.service
+    content: |
+      [Unit]
+      Description=Apply network configuration from boot partition
+      Before=network.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/bash -c 'test -f {{ conf_dir }}/network-config && rm -f /etc/netplan/90-NM-*.yaml && cp {{ conf_dir }}/network-config /etc/netplan/50-network-config.yaml && chmod 600 /etc/netplan/50-network-config.yaml && netplan apply'
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable network config service
+  ansible.builtin.systemd:
+    name: dfld-network-config.service
+    enabled: true
+    daemon_reload: true

@@ -86,6 +86,36 @@ Mehr zum Thema ansible.cfg und Inventorys findet sich in der [Ansible Dokumentat
 
 ## Konfiguration nach der Installation
 
+### WLAN-Konfiguration ändern (Offline)
+
+Die WLAN-Konfiguration kann ohne Netzwerkzugang über die Boot-Partition der SD-Karte geändert werden:
+
+1. Raspberry Pi herunterfahren und SD-Karte entnehmen
+2. SD-Karte in einen Kartenleser stecken (die Boot-Partition ist als FAT32 auf jedem Betriebssystem zugänglich)
+3. Datei `network-config` auf der Boot-Partition bearbeiten
+4. SD-Karte zurück in den Raspberry Pi einsetzen und starten
+
+Die Datei verwendet das Netplan-Format:
+
+```yaml
+network:
+  version: 2
+  wifis:
+    wlan0:
+      dhcp4: true
+      regulatory-domain: "DE"
+      access-points:
+        "SSID":
+          password: "WPA-PSK-HASH"
+      optional: true
+```
+
+Den WPA-PSK-Hash erzeugen Sie mit `wpa_passphrase "SSID"` auf einem Linux-System. Alternativ kann das Klartext-Passwort eingetragen werden.
+
+**Voraussetzung:** Beim Erstellen des Raspberry Pi OS Images muss im Raspberry Pi Imager eine WLAN-Verbindung konfiguriert werden. Dadurch wird die initiale `network-config` auf der Boot-Partition angelegt.
+
+Beim nächsten Boot wird die Konfiguration automatisch über einen systemd Service nach `/etc/netplan/` übernommen.
+
 ### Umgebungsvariablen anpassen
 
 Die Messstation ZWO verwendet zwei zentrale Konfigurationsdateien für Umgebungsvariablen:

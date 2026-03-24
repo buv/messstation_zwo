@@ -8,6 +8,10 @@
   ansible.builtin.include_tasks:
     file: os.yml
 
+- name: Configure Network
+  ansible.builtin.include_tasks:
+    file: network.yml
+
 - name: Configure Hardware
   ansible.builtin.include_tasks:
     file: hardware.yml
