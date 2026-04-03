@@ -23,3 +23,36 @@
     name: dfld-network-config.service
     enabled: true
     daemon_reload: true
+
+- name: Install iw package for WLAN power management control
+  become: true
+  ansible.builtin.apt:
+    pkg:
+      - iw
+    state: present
+
+- name: Create systemd service to disable WLAN power save mode
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dfld-wlan-power-save-off.service
+    content: |
+      [Unit]
+      Description=Disable WLAN power save mode for connection stability
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/sbin/iw dev wlan0 set power_save off
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable WLAN power save off service
+  ansible.builtin.systemd:
+    name: dfld-wlan-power-save-off.service
+    enabled: true
+    daemon_reload: true
