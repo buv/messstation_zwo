@@ -37,37 +37,92 @@ def delta_t(t1_str, t2_datetime):
     return delta.total_seconds()
 
 
-def map_one_day(start_date, res, full_transfer):
+def find_dst_transition(day_start, local_tz):
+    """
+    find the DST transition hour within a day, if any.
+    :param day_start: start of day in UTC (aware datetime)
+    :param local_tz: local timezone (pytz timezone)
+    :return: (transition_hour, offset_delta) or (None, None)
+             transition_hour: local hour before the transition
+             offset_delta: positive = spring forward, negative = fall back
+    """
+    offset = day_start.astimezone(local_tz).utcoffset()
+    for h in range(1, 25):
+        t = day_start + datetime.timedelta(hours=h)
+        new_offset = t.astimezone(local_tz).utcoffset()
+        if new_offset != offset:
+            offset_delta = (new_offset - offset).total_seconds()
+            before = (t - datetime.timedelta(hours=1)).astimezone(local_tz)
+            if offset_delta > 0:
+                # spring forward: the hour after 'before' is skipped
+                transition_hour = before.hour + 1
+            else:
+                # fall back: the hour of 'before' occurs twice
+                transition_hour = before.hour
+            return transition_hour, int(offset_delta)
+    return None, None
+
+
+def adjust_dst(data, day_seconds, transition_hour):
+    """
+    adjust a data buffer for DST transitions so the result is always 86400 entries.
+    - 23h day (spring forward): repeat the transition hour to fill the missing hour
+    - 25h day (fall back): overwrite the first occurrence with the second
+    :param data: source data array (day_seconds entries)
+    :param day_seconds: actual number of seconds in the local day
+    :param transition_hour: local hour where DST transition occurs
+    :return: data array with exactly 86400 entries
+    """
+    t = transition_hour * 3600
+
+    if day_seconds == 82800:
+        # spring forward: insert a copy of the transition hour
+        logging.info('DST spring forward: repeating hour %d to fill 23h day', transition_hour)
+        result = data[:t] + data[t:t+3600] + data[t:]
+    elif day_seconds == 90000:
+        # fall back: drop the first occurrence of the double hour
+        logging.info('DST fall back: overwriting hour %d with following hour', transition_hour)
+        result = data[:t] + data[t+3600:]
+    else:
+        logging.warning('unexpected day length: %d seconds', day_seconds)
+        result = data[:86400]
+
+    return result[:86400]
+
+
+def map_one_day(start_date, res, full_transfer, day_seconds=86400, transition_hour=None):
     """
     map one day of data from influxdb to a 1Hz data array
     :param start_date: start date of the day
     :param res: result from influxdb query
     :param full_transfer: if True, transfer all data from yesterday
-    :return: data array with 1Hz data
+    :param day_seconds: actual number of seconds in the local day
+    :param transition_hour: local hour of DST transition, or None
+    :return: data array with 86400 entries (1Hz)
     """
-    
+
     # check if result is empty
     if len(res.raw['series']) == 0:
         logging.warning('no data found for date %s', start_date)
         return None
-    
+
     # fill data array for one day
     src = res.raw['series'][0]['values']
     t0 = start_date
 
     if full_transfer:
-        n_day = 86400
+        n_day = day_seconds
     else:
         # calculate the number of seconds from start date to last measurement
         last_time = datetime.datetime.fromisoformat(src[-1][0])
-        n_day = int((last_time - t0).total_seconds()) + 1    
+        n_day = int((last_time - t0).total_seconds()) + 1
 
     n_src = len(src)
     dst_idx = 0
     src_idx = 0
     times = [0] * n_src
     values = [0] * n_src
-    data = [0] * 86400
+    data = [0] * day_seconds
     for idx, v in enumerate(src):
         times[idx] = datetime.datetime.fromisoformat(v[0])
         val = round(v[1])
@@ -83,6 +138,10 @@ def map_one_day(start_date, res, full_transfer):
             src_idx += 1
         data[dst_idx] = values[src_idx]
         dst_idx += 1
+
+    # adjust for DST transition to produce exactly 86400 entries
+    if transition_hour is not None and day_seconds != 86400:
+        data = adjust_dst(data, day_seconds, transition_hour)
 
     return data
 
@@ -121,12 +180,27 @@ def get_data(now_dt, full_transfer):
     
     measurement = os.environ["INFLUXDB_MEASUREMENT"]
 
-    # read one day of data from influxdb v1
-    # local time zone calculation is done by database
+    # calculate local day boundaries (handles DST transitions correctly)
     tz = os.environ['TZ']
+    local_tz = pytz.timezone(tz)
+    day = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+    day_start = local_tz.localize(day).astimezone(pytz.utc)
+    next_day = day + datetime.timedelta(days=1)
+    next_day_start = local_tz.localize(next_day).astimezone(pytz.utc)
+    day_seconds = int((next_day_start - day_start).total_seconds())
+
+    # detect DST transition
+    transition_hour, offset_delta = find_dst_transition(day_start, local_tz)
+    if transition_hour is not None:
+        logging.info('DST transition at local hour %d (offset change: %+ds)', transition_hour, offset_delta)
+
+    # read one day of data from influxdb v1
+    # use next day's midnight as boundary instead of +86400s
+    # so DST transition days (23h or 25h) are queried correctly
+    next_date_str = next_day.strftime('%Y-%m-%d')
     query = (f"SELECT dB_A_avg FROM {measurement} WHERE "
              f"time >= ('{date_str}' -     1s) AND "
-             f"time <  ('{date_str}' + 86400s) "
+             f"time <  '{next_date_str}' "
              f"tz('{tz}')")
     logging.debug('SQL query: %s', query)
     result = client.query(query)
@@ -135,13 +209,7 @@ def get_data(now_dt, full_transfer):
         return None
     logging.debug('number of points in result: %s', len(result.raw["series"][0]["values"]))
 
-    # manual calculation of local timezone for postgresql
-    # set local time zone 
-    local_tz = pytz.timezone(tz)
-    day = datetime.datetime.strptime(date_str, '%Y-%m-%d')
-    day_start = local_tz.localize(day).astimezone(pytz.utc)
-
-    data = map_one_day(day_start, result, full_transfer)
+    data = map_one_day(day_start, result, full_transfer, day_seconds, transition_hour)
     bb = None
     if data:
         bb = bytearray(data)
@@ -196,9 +264,10 @@ def check_for_transfer():
             logging.error('ftp error: %s', e)
             logging.error('transfer failed, retry in 1 hour')
 
-# inital delay to wait for system startup
-logging.info('waiting 60 seconds for system startup...')
-time.sleep(60)
-while True:
-    check_for_transfer()
-    time.sleep(3600)
+if __name__ == '__main__':
+    # inital delay to wait for system startup
+    logging.info('waiting 60 seconds for system startup...')
+    time.sleep(60)
+    while True:
+        check_for_transfer()
+        time.sleep(3600)
