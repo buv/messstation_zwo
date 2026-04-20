@@ -53,10 +53,6 @@ Die Messstation ZWO ist eine containerbasierte Lösung zur Erfassung, Verarbeitu
 │  │  │   tsdb2ftp       │  │  tsdb2osm    │  │   Grafana    │             │  │
 │  │  │   (Consumer)     │  │  (Consumer)  │  │  (Consumer)  │             │  │
 │  │  └──────────────────┘  └──────────────┘  └──────────────┘             │  │
-│  │                                                                       │  │
-│  │  ┌──────────────────────────────────────────────────────────────┐     │  │
-│  │  │         Weitere Dienste (PostgreSQL, Nginx)                  │     │  │
-│  │  └──────────────────────────────────────────────────────────────┘     │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
 │  ┌──────────────┐                                                           │
@@ -130,14 +126,9 @@ Zentrale Konfiguration in `/boot/firmware/dfld.yml` (YAML-Format), automatisch i
 - **Subscriptions**: `dfld/sensors/#`
 
 #### InfluxDB
-- **Funktion**: Time-Series Database für Sensordaten
+- **Funktion**: Time-Series Database für Sensordaten und Überflug-Events
 - **Retention**: Konfigurierbar
 - **Port**: 8086 (intern)
-
-#### PostgreSQL
-- **Funktion**: Relationale Datenbank für ADS-B Flugzeugdaten
-- **Nur in**: Version Full
-- **Port**: 5432 (intern)
 
 ### Datenweiterleitung (Egress Layer)
 
@@ -180,7 +171,7 @@ Zentrale Konfiguration in `/boot/firmware/dfld.yml` (YAML-Format), automatisch i
 
 #### Grafana
 - **Funktion**: Dashboards für Sensordaten und Flugzeugüberflüge
-- **Datenquellen**: InfluxDB, PostgreSQL
+- **Datenquellen**: InfluxDB
 - **Port**: 3000 (über Nginx)
 
 #### Nginx
@@ -211,8 +202,9 @@ DNMS Sensor (USB)
 ```
 ADS-B USB Empfänger
   → dump1090 Container
-    → PostgreSQL (via Python Script)
-      → Grafana (Annotations für Überflüge)
+    → detect_flyover Container
+      → InfluxDB (Überflug-Events)
+        → Grafana (Annotations für Überflüge)
 ```
 
 ## Netzwerk-Resilience
@@ -283,7 +275,7 @@ Ansible Controller
 
 ### Neue Visualisierungen
 1. Grafana Dashboard erstellen
-2. InfluxDB oder PostgreSQL als Datenquelle
+2. InfluxDB als Datenquelle
 3. Dashboard-JSON in Ansible-Rolle integrieren
 
 ## Sicherheit
@@ -343,8 +335,7 @@ systemctl status dfld-*
 - ADS-B: Variable Rate (abhängig von Flugverkehr)
 
 ### Speicherbedarf
-- InfluxDB: ~100 MB/Monat (bei 1 Hz Schallpegel)
-- PostgreSQL: ~10 MB/Tag (bei mittlerem Flugverkehr)
+- InfluxDB: ~100 MB/Monat (bei 1 Hz Schallpegel + Überflug-Events)
 
 ## Wartung
 
@@ -359,7 +350,6 @@ git pull
 - `/opt/dfld/` - Alle Container-Daten
 - `/boot/firmware/dfld.yml` - Konfiguration
 - InfluxDB: `influx backup`
-- PostgreSQL: `pg_dump`
 
 ### Logs rotieren
 - Docker-Log-Rotation automatisch konfiguriert

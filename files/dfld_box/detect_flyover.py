@@ -2,18 +2,12 @@ import os
 import json
 import math
 import time
-import uuid
 import socket
 import logging
-import argparse
 import datetime
 import traceback
 import numpy as np
-import psycopg2
-import psycopg2.extras
-from psycopg2 import pool
-
-psycopg2.extras.register_uuid()
+from influxdb import InfluxDBClient
 
 class TrajectoryPool:
     TIMEOUT_CACHE = 3600 # seconds of non reception before purge from cache
@@ -28,8 +22,9 @@ class TrajectoryPool:
     def __getitem__(self, key):
         return self.pool[key]
 
-    def set_postgres_pool(self, pool):
-        self.postgres_pool = pool
+    def set_influx_client(self, client, database):
+        self.influx_client = client
+        self.influx_database = database
 
     def xyz(self, lon, lat, alt):
         lon = lon * 3.141592653589793 / 180.0
@@ -53,9 +48,8 @@ class TrajectoryPool:
         for k in self.pool.keys():
             if self.pool[k].last_active:
                 if (now-self.pool[k].last_active) > self.TIMEOUT_TRAJ:
-                    self.pool[k].dump_trajectory()
                     self.pool[k].reset()
-                
+
                 if (now-self.pool[k].last_active) > self.TIMEOUT_CACHE:
                     timeout_keys.append(k)
         for adsb_id in timeout_keys:
@@ -66,15 +60,14 @@ class TrajectoryPool:
 class Trajectory:
     ACTIVE_RANGE = 5000 # meters
     EVENT_RANGE = 3000 # meters
-    
+
     def __init__(self, pool):
         self.pool = pool
         self.info = {}
         self.last_active = None
         self.reset()
-        
+
     def reset(self):
-        self.uuid = uuid.uuid4()
         self.traj = []
         self.min_dist = 1e9
         self.lambda_ = None
@@ -94,7 +87,7 @@ class Trajectory:
             return
 
         self.last_active = data['now']
-        coords = [data['lon'], data['lat'], data['alt_baro'] * 0.3048, data['now'], data['rssi'], 
+        coords = [data['lon'], data['lat'], data['alt_baro'] * 0.3048, data['now'], data['rssi'],
                            data['alt_geom'] * 0.3048 if 'alt_geom' in data else None]
         v1 = self.pool.xyz(*coords[:3]) - self.pool.home_xyz
         dist_xy = np.linalg.norm(self.pool.xyz(coords[0], coords[1], self.pool.home[2])-self.pool.home_xyz)
@@ -130,7 +123,7 @@ class Trajectory:
             if self.dist > self.min_dist and self.lambda_ < 0 and not self.flyover_detected:
                 self.flyover_detected = True
                 if self.dist <= self.EVENT_RANGE:
-                    self.write_postgres()
+                    self.write_event()
 
             logging.debug(f"{self.info['hex']}:    "
                           f"dist={self.dist:6.1f}   "
@@ -138,68 +131,40 @@ class Trajectory:
                           f"dist_xy={self.dist_xy:6.1f}   "
                           f"lambda={self.lambda_:6.1f}    FOD={self.flyover_detected}")
         else:
-            # when leaving zone, dump trajectory and reset
+            # when leaving zone, reset
             if self.in_zone and len(self.traj)>1:
                 self.in_zone = False
-                self.dump_trajectory()
                 self.reset()
 
-    def write_postgres(self):
-        fields = { k: v for k, v in self.info.items() if k in ['hex', 'flight', 'r', 't', 'rssi'] }
+    def write_event(self):
+        tags = {}
+        for k in ['hex', 'flight', 'r', 't']:
+            if k in self.info:
+                tags[k] = str(self.info[k]).strip()
+
+        fields = {'dist': float(self.dist), 'rssi': float(self.info.get('rssi', 0.0))}
         if 'desc' in self.info:
-            fields['descr'] = self.info['desc']
-        fields['uuid'] = self.uuid
-        fields['eventtime'] = datetime.datetime.utcfromtimestamp(time.time())
-        fields['dist'] = float(self.dist)
-        column_string = ", ".join(fields.keys())
-        value_string = ", ".join([f'%({k})s' for k in fields.keys()])
-        sql = f"INSERT INTO event_raw ({column_string}) VALUES ({value_string});"
-        logging.info(f'postgis event written: {fields}')
-        conn = self.pool.postgres_pool.getconn()
-        cursor = conn.cursor()
-        cursor.execute(sql, fields)
-        conn.commit()
-        self.pool.postgres_pool.putconn(conn, close=True)
+            fields['descr'] = str(self.info['desc'])
 
-    def dump_trajectory(self):
-        # trajectory must have more than 1 point
-        if len(self.traj) > 1:
-            # create GDAL xyzm geometry crs WGS84
-            geom = "SRID=4326;LINESTRING ZM ("
-            for t in self.traj:
-                geom += f"{t[0]} {t[1]} {t[2]} {t[3]},"
-            geom = geom[:-1] + ")"
-            logging.debug(f"trajectory geometry: {geom}")
+        ts = datetime.datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-            rssi = [float(t[4]) for t in self.traj]
-            alt_geom = [t[5] for t in self.traj]
-            alt_baro = [t[2] for t in self.traj]
-            timestamps = [t[3] for t in self.traj]
-
-            # write trajectory to postgres
-            fields = { 'uuid': self.uuid, 'geom': geom, 'rssi': rssi, 'alt_geom': alt_geom, 'alt_baro': alt_baro, 'timestamps': timestamps }
-            fields['icao'] = self.info['hex']
-            fields['t0'] = self.t0
-            fields['min_dist'] = float(self.min_dist)
-            column_string = ", ".join(fields.keys())
-            value_string = ", ".join([f'%({k})s' for k in fields.keys()])
-            sql = f"INSERT INTO trajectory ({column_string}) VALUES ({value_string});"
-            logging.info(f'postgis trajectory written: {fields}')
-            conn = self.pool.postgres_pool.getconn()
-            cursor = conn.cursor()
-            cursor.execute(sql, fields)
-            conn.commit()
-            self.pool.postgres_pool.putconn(conn, close=True)   
-            logging.info(f'trajectory dumped: {self.info["hex"]}')
+        json_body = [{
+            "measurement": "event_raw",
+            "tags": tags,
+            "fields": fields,
+            "time": ts
+        }]
+        self.pool.influx_client.write_points(json_body, database=self.pool.influx_database)
+        logging.info(f'influxdb event written: tags={tags}, fields={fields}')
 
 
 # main loop
-level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO 
+level = os.environ['LOG_LEVEL'].upper() if 'LOG_LEVEL' in os.environ else logging.INFO
 logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=level)
 logging.info('starting...')
 logging.info(f'LOG_LEVEL={level}')
 
-required_env = "DUMP1090_SERVER POSTGRES_SERVER POSTGRES_USERNAME POSTGRES_PASSWORD POSTGRES_DATABASE STATION_POSITION".split()
+required_env = "DUMP1090_SERVER INFLUXDB_SERVER INFLUXDB_USERNAME INFLUXDB_PASSWORD INFLUXDB_DATABASE STATION_POSITION".split()
 missing_env = []
 for k in required_env:
     if k not in os.environ:
@@ -219,13 +184,14 @@ traj_pool = TrajectoryPool(lon_lat_alt)
 
 while True:
     try:
-        # create connection pool to postgres
-        logging.info(f'connecting to postgres database ({args["POSTGRES_SERVER"]})...')
-        postgres_server = args['POSTGRES_SERVER'].split(':')
-        pool = psycopg2.pool.SimpleConnectionPool(2, 2, host=postgres_server[0], port=postgres_server[1], dbname=args['POSTGRES_DATABASE'],
-                                user=args['POSTGRES_USERNAME'], password=args['POSTGRES_PASSWORD'])
-        traj_pool.set_postgres_pool(pool)
-        logging.info(f'connected to postgres database "{args["POSTGRES_DATABASE"]}"')
+        # create connection to influxdb
+        influx_host, influx_port = args['INFLUXDB_SERVER'].split(':')
+        logging.info(f'connecting to influxdb ({args["INFLUXDB_SERVER"]})...')
+        influx_client = InfluxDBClient(host=influx_host, port=int(influx_port),
+                                       username=args['INFLUXDB_USERNAME'], password=args['INFLUXDB_PASSWORD'])
+        influx_client.switch_database(args['INFLUXDB_DATABASE'])
+        traj_pool.set_influx_client(influx_client, args['INFLUXDB_DATABASE'])
+        logging.info(f'connected to influxdb database "{args["INFLUXDB_DATABASE"]}"')
 
         # connect to dump1090 process and loop over lines
         logging.info(f'connecting to dump1090 server ({args["DUMP1090_SERVER"]})...')
@@ -233,7 +199,7 @@ while True:
         dump1090_server = args['DUMP1090_SERVER'].split(':')
         s.connect((dump1090_server[0], int(dump1090_server[1])))
         logging.info(f'connection established.')
-        
+
         with s.makefile('r') as f:
             for line in f:
                 # parse line as json
@@ -257,4 +223,3 @@ while True:
         logging.error(f'exception: {e}')
         logging.error(f'traceback: {traceback.print_tb(e.__traceback__)}')
     time.sleep(1.)
-    

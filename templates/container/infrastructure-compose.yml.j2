@@ -43,27 +43,6 @@ services:
       - homepage.showStats=true
 
 {% if deployment_mode == "full" %}
-  postgis:
-    image: postgis
-    container_name: postgis
-    restart: unless-stopped
-    environment:
-      - PGDATA=/data/postgres
-      - POSTGRES_USER=${POSTGRES_ADMIN_USERNAME}
-      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
-    labels:
-      - homepage.group=Infrastructure
-      - homepage.name=Postgis
-      - homepage.icon=postgresql.svg
-      - homepage.description=Save harbour for all your data
-      - homepage.showStats=true
-    networks:
-      - network
-    ports:
-      - 5432:5432
-    volumes:
-      - postgres-data:/data/postgres
-
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -90,7 +69,6 @@ services:
       - grafana-provisioning:/etc/grafana/provisioning
     depends_on:
       - influxdb
-      - postgis
 
   mqtt-x:
     image: emqx/mqttx-web
@@ -129,31 +107,6 @@ services:
       - ${DOCKER_EXTERNAL_ROOT}/homepage/icons:/app/public/icons
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
-    networks:
-      - network
-
-  pgadmin4:
-    image: dpage/pgadmin4
-    container_name: pgadmin4
-    restart: unless-stopped
-    ports:
-      - 8083:80
-    environment:
-      - PGADMIN_DEFAULT_EMAIL={{ pgadmin_email }}
-      - PGADMIN_DEFAULT_PASSWORD={{ pgadmin_password }}
-      - PGADMIN_SERVER_JSON_FILE=/pgadmin4/servers.json
-      - PGPASS_FILE=/pgadmin4/pgpass
-    labels:
-      - homepage.group=DEV Tools
-      - homepage.href=http://{{ messstation_fqdn }}:8083
-      - homepage.target=_self
-      - homepage.name=pgAdmin
-      - homepage.icon=pgadmin.svg
-      - homepage.description=pgAdmin is a full-featured Postgresql management tool
-      - homepage.showStats=true
-    volumes:
-      - ${DOCKER_EXTERNAL_ROOT}/pgadmin4/server.json:/pgadmin4/servers.json:ro
-      - ${DOCKER_EXTERNAL_ROOT}/pgadmin4/pgpass:/pgadmin4/pgpass:ro
     networks:
       - network
 
@@ -248,7 +201,6 @@ volumes:
 {% if deployment_mode == "full" %}
   grafana-data:
   grafana-provisioning:
-  postgres-data:
   homepage-data:
 {% if hw_conf["ADSB_AVAILABLE"] == 1 %}
   ultrafeeder-globe_history:

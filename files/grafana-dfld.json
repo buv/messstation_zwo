@@ -15,8 +15,8 @@
       },
       {
         "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "degnp01h2dnuof"
+          "type": "influxdb",
+          "uid": "cectojnfyi3ggd"
         },
         "enable": true,
         "filter": {
@@ -29,34 +29,16 @@
         "iconColor": "blue",
         "name": "U3",
         "target": {
-          "editorMode": "code",
-          "format": "table",
+          "query": "SELECT dist, flight, hex FROM event_raw WHERE dist > 1800 AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
-          "rawSql": "SELECT eventtime AS \"time\", '<a href=\"https://globe.adsbexchange.com/?icao=' || hex || '\" target=\"_blank\">' || flight || '</a>' as title, to_char(dist, '9999') || ' m' as text FROM event_raw WHERE dist > 1800 ORDER BY eventtime DESC LIMIT 1000",
           "refId": "Anno",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+          "resultFormat": "table"
         }
       },
       {
         "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "degnp01h2dnuof"
+          "type": "influxdb",
+          "uid": "cectojnfyi3ggd"
         },
         "enable": true,
         "filter": {
@@ -69,34 +51,16 @@
         "iconColor": "yellow",
         "name": "U2",
         "target": {
-          "editorMode": "code",
-          "format": "table",
+          "query": "SELECT dist, flight, hex FROM event_raw WHERE dist > 1200 AND dist <= 1800 AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
-          "rawSql": "SELECT eventtime AS \"time\", '<a href=\"https://globe.adsbexchange.com/?icao=' || hex || '\" target=\"_blank\">' || flight || '</a>' as title, to_char(dist, '9999') || ' m' as text FROM event_raw WHERE dist > 1200 AND dist <= 1800 ORDER BY eventtime DESC LIMIT 1000",
           "refId": "Anno",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+          "resultFormat": "table"
         }
       },
       {
         "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "degnp01h2dnuof"
+          "type": "influxdb",
+          "uid": "cectojnfyi3ggd"
         },
         "enable": true,
         "filter": {
@@ -109,28 +73,10 @@
         "iconColor": "red",
         "name": "U1",
         "target": {
-          "editorMode": "code",
-          "format": "table",
+          "query": "SELECT dist, flight, hex FROM event_raw WHERE dist <= 1200 AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
-          "rawSql": "SELECT eventtime AS \"time\", '<a href=\"https://globe.adsbexchange.com/?icao=' || hex || '\" target=\"_blank\">' || flight || '</a>' as title, to_char(dist, '9999') || ' m' as text FROM event_raw WHERE dist <= 1200 ORDER BY eventtime DESC LIMIT 1000",
           "refId": "Anno",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+          "resultFormat": "table"
         }
       }
     ]
@@ -354,8 +300,8 @@
     },
     {
       "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "degnp01h2dnuof"
+        "type": "influxdb",
+        "uid": "cectojnfyi3ggd"
       },
       "fieldConfig": {
         "defaults": {
@@ -400,31 +346,13 @@
       "targets": [
         {
           "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "degnp01h2dnuof"
+            "type": "influxdb",
+            "uid": "cectojnfyi3ggd"
           },
-          "editorMode": "code",
-          "format": "table",
+          "query": "SELECT COUNT(dist) FROM event_raw WHERE $timeFilter",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(uuid) FROM event_raw WHERE eventtime >= $__timeFrom() AND eventtime <= $__timeTo() ",
           "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "name": "COUNT",
-                "parameters": [
-                  {
-                    "name": "uuid",
-                    "type": "functionParameter"
-                  }
-                ],
-                "type": "function"
-              }
-            ],
-            "groupBy": [],
-            "limit": 50
-          },
-          "table": "event_raw"
+          "resultFormat": "table"
         }
       ],
       "title": "Gesamtzahl Überflüge",
@@ -432,8 +360,8 @@
     },
     {
       "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "degnp01h2dnuof"
+        "type": "influxdb",
+        "uid": "cectojnfyi3ggd"
       },
       "fieldConfig": {
         "defaults": {
@@ -451,7 +379,7 @@
             {
               "targetBlank": true,
               "title": "Link to adsbexchange.com",
-              "url": "https://globe.adsbexchange.com/?icao=${__data.fields.ICAO}"
+              "url": "https://globe.adsbexchange.com/?icao=${__data.fields.hex}"
             }
           ],
           "mappings": [],
@@ -480,7 +408,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Callsign"
+              "options": "flight"
             },
             "properties": [
               {
@@ -492,7 +420,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Distance"
+              "options": "dist"
             },
             "properties": [
               {
@@ -504,7 +432,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Registration"
+              "options": "r"
             },
             "properties": [
               {
@@ -516,7 +444,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Type"
+              "options": "t"
             },
             "properties": [
               {
@@ -528,7 +456,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Description"
+              "options": "descr"
             },
             "properties": [
               {
@@ -540,7 +468,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "ICAO"
+              "options": "hex"
             },
             "properties": [
               {
@@ -580,31 +508,13 @@
       "targets": [
         {
           "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "degnp01h2dnuof"
+            "type": "influxdb",
+            "uid": "cectojnfyi3ggd"
           },
-          "editorMode": "code",
-          "format": "table",
+          "query": "SELECT dist, descr, flight, hex, r, t FROM event_raw WHERE $timeFilter ORDER BY time DESC",
           "rawQuery": true,
-          "rawSql": "SELECT eventtime as \"Time\", flight as \"Callsign\", dist as \"Distance\", r as \"Registration\", t as \"Type\", hex as \"ICAO\", descr as \"Description\" FROM event_raw WHERE eventtime >= $__timeFrom() AND eventtime < $__timeTo() ORDER BY eventtime DESC",
           "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
+          "resultFormat": "table"
         }
       ],
       "title": "Überflugsliste",
@@ -612,8 +522,8 @@
     },
     {
       "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "degnp01h2dnuof"
+        "type": "influxdb",
+        "uid": "cectojnfyi3ggd"
       },
       "fieldConfig": {
         "defaults": {
@@ -639,7 +549,7 @@
             {
               "targetBlank": true,
               "title": "Show on map",
-              "url": "http://localhost:3030/?from=${__from}﻿&to=﻿${__to}﻿"
+              "url": "http://localhost:3030/?from=${__from}&to=${__to}"
             }
           ],
           "mappings": [],
@@ -714,38 +624,13 @@
       "targets": [
         {
           "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "degnp01h2dnuof"
+            "type": "influxdb",
+            "uid": "cectojnfyi3ggd"
           },
-          "editorMode": "code",
-          "format": "table",
-          "hide": false,
+          "query": "SELECT dist FROM event_raw WHERE $timeFilter",
           "rawQuery": true,
-          "rawSql": "SELECT dist FROM event_raw WHERE eventtime >= $__timeFrom() AND eventtime < $__timeTo() ",
           "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [
-                  {
-                    "name": "dist",
-                    "type": "functionParameter"
-                  }
-                ],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          },
-          "table": "event_raw"
+          "resultFormat": "table"
         }
       ],
       "title": "Minimaler Überflugabstand",

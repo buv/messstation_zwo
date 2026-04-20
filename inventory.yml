@@ -48,13 +48,6 @@ all:
     influxdb_username: "{{ dfld_user }}"
     influxdb_password: "{{ dfld_user }}"
 
-    postgres_username: "{{ dfld_user }}"
-    postgres_password: "{{ dfld_user }}"
-    postgres_database: "dfld"
-
-    pgadmin_email: "{{ dfld_user }}@dfld.de"
-    pgadmin_password: "{{ dfld_user }}"
-
     #
     # ansible part
     #

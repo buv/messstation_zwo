@@ -7,4 +7,3 @@ infrastructure_containers:
     - telegraf
     - homepage
     - mqtt
-    - pgadmin

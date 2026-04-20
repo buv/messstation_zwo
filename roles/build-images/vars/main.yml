@@ -5,4 +5,3 @@ docker_images:
     - dfld_box
   full:
     - dfld_box
-    - postgis

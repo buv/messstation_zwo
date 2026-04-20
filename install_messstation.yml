@@ -25,8 +25,6 @@
     - role: build-images
     - role: detect_hardware
     - role: deploy_container
-    - role: configure-postgres
-      when: deployment_mode == "full"
     - role: configure-grafana
       when: deployment_mode == "full"
 
@@ -56,10 +54,8 @@
           - 'We setup a dashboard for you at: http://{{ messstation_fqdn }}'
           - ''
           - 'You can access the grafana services at: http://{{ messstation_fqdn }}:3000 with User: {{ grafana_username }} / Password: {{ grafana_password }}'
-          - 'You can access the pgadmin services at: http://{{ messstation_fqdn }}:8083 with User: {{ pgadmin_email }} / Password: {{ pgadmin_password }}'
           - ''
           - 'You can access the influxdb with: User: {{ influxdb_username }} / Password: {{ influxdb_password }}'
-          - 'You can access the postgres with: User: {{ postgres_username }} / Password: {{ postgres_password }}'
           - ''
           - '{{ (detect_hw_response.failed) | ternary("You may look around. But nothing will be measured.", "Happy measuring!") }}'
           - ''
