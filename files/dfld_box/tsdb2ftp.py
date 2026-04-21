@@ -146,20 +146,20 @@ def map_one_day(start_date, res, full_transfer, day_seconds=86400, transition_ho
     return data
 
 
-def get_data(now_dt, full_transfer):
+def get_data(target_dt, full_day):
     """
-    get data from influxdb v1
-    :param now_dt: datetime object
-    :param full_transfer: if True, transfer all data from yesterday
-    :return: bytearray with data
+    get one day of data from influxdb v1
+    :param target_dt: datetime whose date identifies the day to query
+    :param full_day: True for a completed past day (fill full 86400 entries);
+                     False for today's partial (fill up to last measurement)
+    :return: (buf, query_ok). buf is a bytearray on success, None otherwise.
+             query_ok is False only on connection/query failure (transient —
+             caller should retry). An empty result for the queried day
+             returns (None, True) so the caller can distinguish "day has no
+             data" from "influx unreachable".
     """
-    
-    # if full_transfer is True, set date_str to yesterday
-    if full_transfer:
-        yesterday = now_dt - datetime.timedelta(days=1)
-        date_str = yesterday.strftime('%Y-%m-%d')
-    else:
-        date_str = now_dt.strftime('%Y-%m-%d')
+
+    date_str = target_dt.strftime('%Y-%m-%d')
 
     try:
         # create connection to influxdb v1
@@ -176,8 +176,8 @@ def get_data(now_dt, full_transfer):
         logging.debug('switched to database "%s"', os.environ["INFLUXDB_DATABASE"])
     except Exception as e:
         logging.error('failed to connect to influxdb: %s', e)
-        return None
-    
+        return None, False
+
     measurement = os.environ["INFLUXDB_MEASUREMENT"]
 
     # calculate local day boundaries (handles DST transitions correctly)
@@ -206,63 +206,86 @@ def get_data(now_dt, full_transfer):
     result = client.query(query)
     if len(result.raw["series"]) == 0:
         logging.warning('no data found for date %s', date_str)
-        return None
+        return None, True
     logging.debug('number of points in result: %s', len(result.raw["series"][0]["values"]))
 
-    data = map_one_day(day_start, result, full_transfer, day_seconds, transition_hour)
+    data = map_one_day(day_start, result, full_day, day_seconds, transition_hour)
     bb = None
     if data:
         bb = bytearray(data)
         bb.extend([calc_crc(data) & 0xff, 0x00])
         logging.debug('length of bytebuffer: %s', len(bb))
-    return bb
- 
+    return bb, True
+
+
+def _do_transfer(target_dt, day_str, full_day):
+    """
+    Query InfluxDB for a single day and, if non-empty, FTP the result.
+    :return: 'ok', 'empty' (query succeeded but day has no data), or
+             'error' (connection/FTP failure — caller should retry later)
+    """
+    buf, query_ok = get_data(target_dt, full_day)
+    if not query_ok:
+        return 'error'
+    if not buf or len(buf) == 0:
+        logging.info('no data available for %s', day_str)
+        return 'empty'
+
+    ftp_filename = f"{int(os.environ['DFLD_CKSUM']):04x}-{int(os.environ['DFLD_REGION']):03d}-{day_str}-{int(os.environ['DFLD_STATION']):03d}.wwx"
+    try:
+        ftp_dst = deobfuscate_string(os.environ['DFLD_LEGACY']).split(':')
+        ftp = ftplib.FTP()
+        ftp.connect(ftp_dst[0], int(ftp_dst[1]))
+        ftp.login(ftp_dst[2], ftp_dst[3])
+        logging.info('transfering %s bytes of data to file %s via ftp...', len(buf), ftp_filename)
+        with io.BytesIO(buf) as f:
+            ftp.storbinary(f'STOR {ftp_filename}', f)
+        ftp.quit()
+        return 'ok'
+    except ftplib.all_errors as e:
+        logging.error('ftp error: %s', e)
+        logging.error('transfer failed, retry in 1 hour')
+        return 'error'
+
 
 def check_for_transfer():
     last_transfer_filename = "last_transfer.txt"
 
-    # set date of transfer day
     now_dt = datetime.datetime.now()
-    yesterday_str = (now_dt - datetime.timedelta(days=1)).strftime('%Y%m%d')
+    yesterday_date = (now_dt - datetime.timedelta(days=1)).date()
+    yesterday_str = yesterday_date.strftime('%Y%m%d')
 
-    # transfer is due, if last transfer date is before yesterday
-    full_transfer_due = True
     if pathlib.Path(last_transfer_filename).is_file():
         with open(last_transfer_filename, mode="r", encoding="utf-8") as f:
-            last_transfer_date_str = f.readline().rstrip()
-            if re.search(r'^\d{8}$', last_transfer_date_str) and last_transfer_date_str >= yesterday_str:
-                full_transfer_due = False
+            last_str = f.readline().rstrip()
+        if not re.search(r'^\d{8}$', last_str):
+            # corrupted content: fall back to yesterday-1 so yesterday re-transfers
+            last_str = (yesterday_date - datetime.timedelta(days=1)).strftime('%Y%m%d')
     else:
-        # do not transfer if last transfer date is not set,
-        # but initialize instead
+        # first run: initialize to yesterday, no arbitrary backfill
+        last_str = yesterday_str
         with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
-            print(yesterday_str, file=f)
-        logging.info('last transfer date set to %s', yesterday_str)
-        full_transfer_due = False
+            print(last_str, file=f)
+        logging.info('last transfer date initialized to %s', last_str)
 
-    day_str = yesterday_str if full_transfer_due else now_dt.strftime('%Y%m%d')
-    logging.info('processing %s fullday=%s ...', day_str, full_transfer_due)
-    ftp_filename = f"{int(os.environ['DFLD_CKSUM']):04x}-{int(os.environ['DFLD_REGION']):03d}-{day_str}-{int(os.environ['DFLD_STATION']):03d}.wwx"
+    # catch up one full day at a time from last_transfer+1 up to yesterday
+    day = datetime.datetime.strptime(last_str, '%Y%m%d').date() + datetime.timedelta(days=1)
+    while day <= yesterday_date:
+        day_str = day.strftime('%Y%m%d')
+        target_dt = datetime.datetime.combine(day, datetime.time.min)
+        logging.info('processing %s fullday=True ...', day_str)
+        status = _do_transfer(target_dt, day_str, full_day=True)
+        if status == 'error':
+            # transient failure — resume from this same day next cycle
+            return
+        with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
+            print(day_str, file=f)
+        day += datetime.timedelta(days=1)
 
-    buf = get_data(now_dt, full_transfer_due)
-    if buf and len(buf) > 0:
-        try:
-            ftp_dst = deobfuscate_string(os.environ['DFLD_LEGACY']).split(':')
-            ftp = ftplib.FTP()
-            ftp.connect(ftp_dst[0], int(ftp_dst[1]))
-            ftp.login(ftp_dst[2], ftp_dst[3])
-            logging.info('transfering %s bytes of data to file %s via ftp...', len(buf), ftp_filename)
-
-            with io.BytesIO(buf) as f:
-                ftp.storbinary(f'STOR {ftp_filename}', f)
-        
-            ftp.quit()
-            if full_transfer_due:
-                with open(last_transfer_filename, mode="w", encoding="utf-8") as f:
-                    print(day_str, file=f)
-        except ftplib.all_errors as e:
-            logging.error('ftp error: %s', e)
-            logging.error('transfer failed, retry in 1 hour')
+    # partial transfer for today (never marks last_transfer)
+    today_str = now_dt.strftime('%Y%m%d')
+    logging.info('processing %s fullday=False ...', today_str)
+    _do_transfer(now_dt, today_str, full_day=False)
 
 if __name__ == '__main__':
     # inital delay to wait for system startup
