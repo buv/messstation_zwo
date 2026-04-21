@@ -46,3 +46,17 @@
     path: "{{ dfld_dir }}/mqtt-certs/client-key.pem"
     mode: '0600'
   when: client_certs_archive.stat.exists
+
+- name: Check if mqtt-client-certs.tgz exists at /home/dfld on the target
+  ansible.builtin.stat:
+    path: /home/dfld/mqtt-client-certs.tgz
+  register: target_mqtt_client_certs
+
+- name: Extract mqtt-client-certs.tgz into /opt/dfld
+  ansible.builtin.unarchive:
+    src: /home/dfld/mqtt-client-certs.tgz
+    dest: "{{ dfld_dir }}"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    remote_src: true
+  when: target_mqtt_client_certs.stat.exists

@@ -1,5 +1,23 @@
 ---
 
+- name: Pin compatible docker Python SDK + requests (docker 7.1.0 breaks with requests >=2.32)
+  ansible.builtin.pip:
+    name:
+      - "docker>=7.1.0,<8"
+      - "requests<2.32"
+    extra_args: "--break-system-packages --ignore-installed"
+  become: true
+
+- name: Show installed docker/requests versions
+  ansible.builtin.command: >
+    python3 -c "import docker, requests; print('docker=' + docker.__version__ + ' requests=' + requests.__version__)"
+  register: sdk_versions
+  changed_when: false
+
+- name: Report docker SDK versions
+  ansible.builtin.debug:
+    msg: "{{ sdk_versions.stdout }}"
+
 - name: Check if dfld images exist
   community.docker.docker_image_info:
     name: "{{ item }}"
@@ -16,8 +34,7 @@
     mode: '0644'
     force: false
   loop: "{{ image_info.results }}"
-  when: not item.images
-  no_log: true
+  when: not (item.images | default([]))
 
 - name: Build dfld images only if they don't exist
   community.docker.docker_image:
@@ -26,5 +43,4 @@
       path: "{{ dfld_dir }}/{{ item.item }}"
     source: build
   loop: "{{ image_info.results }}"
-  when: not item.images
-  no_log: true
+  when: not (item.images | default([]))

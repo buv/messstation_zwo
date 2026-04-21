@@ -12,3 +12,4 @@ __pycache__/
 *~
 .ansible
 *.tgz
+controller/id_ed25519.pub
