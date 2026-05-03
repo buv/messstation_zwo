@@ -17,6 +17,9 @@
       - netcat-openbsd
       - jq
       - yq
+      # Fuer dfld-config TUI (Bash + whiptail). Locale C.UTF-8 ist via
+      # glibc immer da, daher kein locales-Paket noetig.
+      - whiptail
     state: present
 
 - name: Get /boot/firmware/cmdline.txt

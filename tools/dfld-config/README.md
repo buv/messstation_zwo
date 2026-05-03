@@ -6,14 +6,16 @@ damit Operator nichts auf dem Host installieren muss (außer podman/docker).
 
 ## Aufruf
 
+**Pre-Deployment (am Controller-Host, im Repo-Root):**
+
 ```bash
 cd ~/projects/dfld/messstation_zwo
-tools/dfld-config/dfld-config
+tools/dfld-config/dfld-config           # podman/docker-Container
 ```
 
-Schreibt `./dfld.yml` ins **aktuelle Verzeichnis** (= Repo-Root). Beim
-nächsten `./install_messstation.sh --mode mini <pi-ip>` legt Ansible
-diese Datei automatisch nach `/boot/firmware/dfld.yml` auf der Pi ab.
+Schreibt `./dfld.yml` ins **aktuelle Verzeichnis**. Beim nächsten
+`./install_messstation.sh --mode mini <pi-ip>` legt Ansible diese Datei
+automatisch nach `/boot/firmware/dfld.yml` auf der Pi ab.
 
 Container-Runtime wird selbst gefunden (podman bevorzugt, docker als
 Fallback). Override:
@@ -21,6 +23,18 @@ Fallback). Override:
 ```bash
 DFLD_CONFIG_RUNTIME=docker tools/dfld-config/dfld-config
 ```
+
+**Post-Deployment (direkt auf der Pi):**
+
+```bash
+ssh dfld@pi
+sudo dfld-config           # /usr/local/bin/dfld-config (per Ansible installiert)
+```
+
+Schreibt direkt nach `/boot/firmware/dfld.yml`. Der existierende
+systemd-Path-Watcher (`dfld-connectors-reload.service`) erkennt die
+Änderung und reloaded die Container automatisch — kein Re-Deploy
+nötig für Konfig-Updates.
 
 ## Was die TUI kann
 
@@ -47,16 +61,14 @@ und Werte als Default angezeigt — kein Datenverlust beim Re-Edit.
 
 ## Status
 
-Pre-Production-Demo. Noch NICHT als `/usr/local/bin/dfld-config` per
-Ansible-Rolle deployed — das ist ein eigener PR. Hier liegt das Tool
-zum Evaluieren und Iterieren bereit.
+Production. Wird via Ansible-Rolle `deploy_container` nach
+`/usr/local/bin/dfld-config` auf jeder Pi installiert. Voraussetzung
+`whiptail` ist in der `configure-raspi`-Rolle in den apt-Packages.
 
-Die `Datenübertragung`-Felder schreiben das **neue** Schema mit zwei
+Die `Datenübertragung`-Felder schreiben das aktuelle Schema mit zwei
 unabhängigen Feldern (`dfld_live_enabled`, `dfld_backfill_interval`).
-Der bestehende Pi-Container-Stack (`tsdb2http` aus PR2) erwartet aktuell
-noch das alte `dfld_tx_tier`-Feld — Backend-Migration auf das neue
-Schema ist ein separater PR. Migration vom alten `dfld_tx_tier` beim
-Laden ist bereits drin.
+Migration vom alten `dfld_tx_tier` beim Laden ist drin; der
+Container-Stack (`tsdb2http`) liest beide Schemata.
 
 ## Dateien
 

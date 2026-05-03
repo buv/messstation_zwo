@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 # dfld-config — Bash + whiptail (raspi-config-Stil mit gruppierten Sub-Screens)
-# Volle 18-Felder-Maske analog dfld.yml-Schema, inkl. dfld_tx_tier (Backfill).
+# Interaktive TUI fuer dfld.yml. Volle 18-Felder-Maske analog Schema.
 #
-# WICHTIG: kein `set -e` — würde non-zero Exits aus edit_X-Funktionen
+# Laeuft sowohl auf dem Controller-Host (vor dem Deployment, schreibt
+# ./dfld.yml im aktuellen Verzeichnis) als auch direkt auf der Pi
+# (post-deployment, schreibt /boot/firmware/dfld.yml).
+#
+# WICHTIG: kein `set -e` — wuerde non-zero Exits aus edit_X-Funktionen
 # durch case-Branches in while-Loop-Bodies propagieren und das Script
-# beim ersten ESC/Cancel killen. `set -u` reicht für unset-var-Safety.
+# beim ersten ESC/Cancel killen. `set -u` reicht fuer unset-var-Safety.
 set -uo pipefail
+
+# Locale-Default fuer Pi-Bare-Run (im Container vom Dockerfile gesetzt).
+# C.UTF-8 ist via glibc immer da, kein locale-gen noetig.
+export LANG="${LANG:-C.UTF-8}"
+export LC_ALL="${LC_ALL:-C.UTF-8}"
 
 # Output-Pfad bestimmen:
 #   1. Env-Var DFLD_CONFIG (höchste Priorität, z.B. für Tests)

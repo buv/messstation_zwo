@@ -1,0 +1,12 @@
+---
+# Install dfld-config TUI nach /usr/local/bin/dfld-config.
+# Pattern identisch zu install_generate_script.yml (gleiches deploy_container-
+# Role-Verzeichnis). Voraussetzung whiptail wird in configure-raspi installiert.
+
+- name: Copy dfld-config script to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/tools/dfld-config/dfld-config.sh"
+    dest: /usr/local/bin/dfld-config
+    owner: root
+    group: root
+    mode: '0755'

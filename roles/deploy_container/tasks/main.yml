@@ -3,6 +3,9 @@
 - name: Install dfld-generate-env.sh script
   ansible.builtin.include_tasks: install_generate_script.yml
 
+- name: Install dfld-config TUI
+  ansible.builtin.include_tasks: install_dfld_config.yml
+
 - name: Capture version information
   ansible.builtin.include_tasks: capture_version.yml
 
