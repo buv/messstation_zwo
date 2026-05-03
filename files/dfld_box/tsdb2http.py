@@ -6,12 +6,16 @@ die Daten via HTTPS+mTLS an den DFLD-Backend-Endpoint
 Komponente heisst dort `spl-backfill`). State-File `last-tx.txt` haelt
 fest, ab welchem Zeitpunkt der naechste Lauf weitermacht.
 
-Drei Betriebs-Tiers via DFLD_TX_TIER:
-- live   : 1h-Loop. Live-MQTT laeuft parallel weiter; dieser Pfad ist
-           Reconciliation. ReplacingMergeTree dedupt im Backend.
-- hourly : 1h-Loop. Live-MQTT abgeschaltet (separater Schritt); dieser
-           Pfad ist primaerer Kanal.
+Intervalle via DFLD_BACKFILL_INTERVAL (oder Legacy-Fallback DFLD_TX_TIER):
+- hourly : 1h-Loop. Live-MQTT laeuft typisch parallel weiter; dieser Pfad
+           ist Reconciliation oder primaerer Kanal je nach Live-Setting.
 - daily  : 24h-Loop. LTE-Volumen-Cap. Monitoring statt Realtime.
+
+Legacy-Mapping fuer Bestandsstationen mit altem DFLD_TX_TIER:
+- live   -> hourly (Backfill stuendlich, Live laeuft separat via mqtt2mqtt)
+- hourly -> hourly
+- daily  -> daily
+- off    -> Container wird vom Compose nicht gerendert (siehe template).
 
 Die Architektur-Decisions und der Wire-Format-Vertrag stehen in
 docs/backfill-architecture.md im dfld_server-Repo.
@@ -34,7 +38,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=LOG_
 
 REQUIRED_ENV = (
     'INFLUXDB_SERVER INFLUXDB_USERNAME INFLUXDB_PASSWORD INFLUXDB_DATABASE '
-    'DFLD_REGION DFLD_STATION DFLD_TX_TIER'
+    'DFLD_REGION DFLD_STATION'
 ).split()
 missing = [k for k in REQUIRED_ENV if k not in os.environ]
 if missing:
@@ -43,8 +47,21 @@ if missing:
 
 INGEST_URL  = os.environ.get('DFLD_INGEST_URL', 'https://ingest.dfld.de').rstrip('/')
 STATION     = f"{int(os.environ['DFLD_REGION']):03d}-{int(os.environ['DFLD_STATION']):03d}"
-TIER        = os.environ['DFLD_TX_TIER'].lower()
 MEASUREMENT = os.environ.get('INFLUXDB_MEASUREMENT', 'spl')
+
+# Tier ableiten: bevorzugt neues DFLD_BACKFILL_INTERVAL, Fallback auf
+# Legacy DFLD_TX_TIER (live -> hourly mapping).
+_interval = (os.environ.get('DFLD_BACKFILL_INTERVAL') or '').lower()
+if not _interval:
+    _legacy = (os.environ.get('DFLD_TX_TIER') or '').lower()
+    if _legacy == 'live':
+        _interval = 'hourly'
+    elif _legacy in ('hourly', 'daily', 'off'):
+        _interval = _legacy
+if not _interval:
+    logging.error('neither DFLD_BACKFILL_INTERVAL nor DFLD_TX_TIER set')
+    sys.exit(1)
+TIER = _interval
 
 # Container-internal paths. State volume is bind-mounted to host
 # /opt/dfld/tsdb2http/ so it survives container recreation.
@@ -64,20 +81,19 @@ KEY_PATH    = '/mqtt-certs/client-key.pem'
 MAX_BATCH_ROWS = 21600
 
 TIER_INTERVALS = {
-    'live':   3600,
     'hourly': 3600,
     'daily':  86400,
 }
 
 if TIER == 'off':
-    # Operator hat per dfld.yml den Tier auf "off" gesetzt nachdem der
+    # Operator hat per dfld.yml das Intervall auf "off" gesetzt nachdem der
     # Container schon deployed war. Sauber idle bleiben statt restart-loop.
-    logging.info('DFLD_TX_TIER=off — idling (no backfill activity)')
+    logging.info('DFLD_BACKFILL_INTERVAL=off — idling (no backfill activity)')
     while True:
         time.sleep(86400)
 
 if TIER not in TIER_INTERVALS:
-    logging.error('unknown DFLD_TX_TIER %r (allowed: live, hourly, daily, off)', TIER)
+    logging.error('unknown backfill interval %r (allowed: hourly, daily, off)', TIER)
     sys.exit(1)
 
 # Initial-Delay nach Container-Start: gibt InfluxDB Zeit hochzufahren

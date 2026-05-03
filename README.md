@@ -267,22 +267,35 @@ mqtt_bridged_rename: "dfld/sensors/noise/ sensebox/cindy-s-test/"
 mqtt_bridged_tls: "true"
 ```
 
-#### SPL Backfill (zweite Übertragungsebene via HTTPS)
+#### Datenübertragung — zwei unabhängige Pfade
 
-Optionaler Container `tsdb2http` schickt periodisch SPL-Daten aus der lokalen InfluxDB an den DFLD-Backend-Endpoint `https://ingest.dfld.de/backfill/spl/<station>` (mTLS-authentifiziert mit demselben Pi-Client-Cert wie für VerneMQ-MQTT). Dient als zweite Übertragungsebene parallel oder anstelle des Live-MQTT-Pfads, je nach gewähltem Tier:
+Die Stations-Daten landen via zwei voneinander unabhängige Mechanismen im DFLD-Backend:
 
 ```yaml
-dfld_tx_tier: "live"   # live | hourly | daily | off
+dfld_live_enabled: true            # Live-MQTT-Bridge (mqtt2mqtt) an/aus
+dfld_backfill_interval: "hourly"   # HTTPS-Batch (tsdb2http): hourly | daily | off
 ```
 
-| Tier | Live-MQTT | Backfill-Intervall | Bandbreite/Run | Use Case |
-|---|---|---|---|---|
-| `live` | parallel weiter | 1 h | ~80 KB gz | Standard-Stationen mit gutem WLAN. Backfill ist Reconciliation, ReplacingMergeTree dedupt im Backend. |
-| `hourly` | abschalten | 1 h | ~80 KB gz | LTE/Sat. Stündlicher Batch-Push als alleiniger Kanal. |
-| `daily` | abschalten | 24 h | ~1.5 MB gz | LTE-Volumen-Cap. Monitoring statt Realtime. |
-| `off` | unverändert | — | 0 | Container idle (oder nicht gerendert wenn schon im Inventory `off` steht). |
+| Feld | Wert | Wirkung |
+|---|---|---|
+| `dfld_live_enabled: true` | `mqtt2mqtt`-Container läuft (Echtzeit-Stream zu `mqtt.dfld.de:8883`, ~1 Hz) | braucht stabiles Netz; benötigt zusätzlich `mqtt_bridged_broker` + `mqtt_bridged_rename` |
+| `dfld_live_enabled: false` | keine Live-Bridge, Daten gehen nur per Batch raus | sinnvoll für LTE/Sat |
+| `dfld_backfill_interval: hourly` | `tsdb2http` schickt 1×/h ein gz-NDJSON-POST an `ingest.dfld.de` | ~80 KB gz/Stunde |
+| `dfld_backfill_interval: daily`  | `tsdb2http` schickt 1×/Tag | ~1.5 MB gz/Tag |
+| `dfld_backfill_interval: off`    | `tsdb2http`-Container wird nicht gerendert | 0 |
 
-Default in `inventory.yml` ist `live`. Per-Station-Override über `dfld.yml` möglich (greift via `dfld-generate-env.sh` ohne Re-Deploy, sobald systemd den Container neu startet).
+**Übliche Kombinationen:**
+
+| Anwendungsfall | `dfld_live_enabled` | `dfld_backfill_interval` |
+|---|---|---|
+| Standard-Pi (gutes Netz) | `true` | `hourly` |
+| LTE bandbreitensparend | `false` | `hourly` |
+| LTE Volumen-Cap | `false` | `daily` |
+| Diagnose / offline | `false` | `off` |
+
+Defaults in `inventory.yml` sind `true` + `hourly`. Per-Station-Override über `dfld.yml` greift via `dfld-generate-env.sh` ohne Re-Deploy.
+
+**Legacy-Migration:** Stationen mit altem `dfld_tx_tier`-Feld in dfld.yml funktionieren weiter — `tsdb2http` mappt `live`/`hourly`/`daily`/`off` automatisch auf `dfld_backfill_interval`. Live-MQTT bleibt in dem Fall an (default `dfld_live_enabled: true`).
 
 **State-Datei für manuellen Reload:** `/opt/dfld/tsdb2http/last-tx.txt` enthält den ISO-8601-Timestamp ab dem der nächste Lauf weitermacht. Catch-up eines bestimmten Zeitraums von Hand triggern:
 

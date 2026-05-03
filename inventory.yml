@@ -20,13 +20,20 @@ all:
     dfld_liveview: ""
     dfld_legacy: ""
 
-    # Backfill via HTTPS an ingest.dfld.de — siehe docs/backfill-architecture.md
-    # im dfld_server-Repo. Werte: live | hourly | daily | off
-    #   live   = Live-MQTT laeuft + stuendlicher Backfill als Reconciliation
-    #   hourly = nur stuendlicher Batch-Push (kein Live-MQTT noetig)
-    #   daily  = einmal pro Tag (LTE-Volumen-Cap)
-    #   off    = Container nicht rendern
-    dfld_tx_tier: "live"
+    # Datenuebertragung — zwei unabhaengige Pfade an mqtt.dfld.de / ingest.dfld.de.
+    # Siehe docs/backfill-architecture.md im dfld_server-Repo.
+    #
+    # dfld_live_enabled: Live-MQTT-Bridge (mqtt2mqtt) zum DFLD-Server.
+    #                    true  = Echtzeit-Stream (1 Hz), braucht stabiles Netz
+    #                    false = kein Live, nur Batch (siehe naechstes Feld)
+    #
+    # dfld_backfill_interval: HTTPS-Batch-Upload (tsdb2http) an ingest.dfld.de.
+    #                    hourly = stuendlicher Push (LTE-bandbreitensparend
+    #                             oder als Reconciliation neben Live)
+    #                    daily  = einmal pro Tag (LTE-Volumen-Cap)
+    #                    off    = Container nicht rendern
+    dfld_live_enabled: true
+    dfld_backfill_interval: "hourly"
     
     
     dfld_user: "dfld"

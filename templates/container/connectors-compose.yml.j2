@@ -129,11 +129,11 @@ services:
       - network
 {% endif %}
 
-{% if dfld_tx_tier is defined and dfld_tx_tier != "off" %}
+{% if dfld_backfill_interval is defined and dfld_backfill_interval != "off" %}
   # Pi-seitige Backfill-Komponente: liest aus lokaler InfluxDB und pusht
   # via HTTPS+mTLS an den server-seitigen spl-backfill-Endpoint
-  # (https://ingest.dfld.de/backfill/spl/<station>). Tier steuert das
-  # Sleep-Intervall (live/hourly = 3600s, daily = 86400s).
+  # (https://ingest.dfld.de/backfill/spl/<station>). Intervall steuert
+  # das Sleep (hourly = 3600s, daily = 86400s).
   # Architektur: docs/backfill-architecture.md im dfld_server-Repo.
   tsdb2http:
     image: dfld_box
@@ -148,11 +148,13 @@ services:
       - INFLUXDB_MEASUREMENT=spl
       - DFLD_REGION=${DFLD_REGION}
       - DFLD_STATION=${DFLD_STATION}
-      # Fallback ist der inventory-Default — ${VAR:-...}-Syntax laesst den
-      # User per dfld.yml-Edit ueberschreiben (dfld-generate-env.sh schreibt
-      # dann DFLD_TX_TIER ins dfld_user.env, systemd-path-watcher reloaded
-      # den Container, kein Re-Deploy noetig). Werte: live|hourly|daily|off.
-      - DFLD_TX_TIER=${DFLD_TX_TIER:-{{ dfld_tx_tier }}}
+      # ${VAR:-...}-Syntax laesst den User per dfld.yml-Edit ueberschreiben
+      # (dfld-generate-env.sh schreibt nach dfld_user.env, systemd-path-watcher
+      # reloaded den Container, kein Re-Deploy noetig).
+      # DFLD_TX_TIER bleibt als Legacy-Env mitgesetzt fuer dfld_user.env-
+      # Stationen die noch das alte Feld haben (tsdb2http.py akzeptiert beides).
+      - DFLD_BACKFILL_INTERVAL=${DFLD_BACKFILL_INTERVAL:-{{ dfld_backfill_interval }}}
+      - DFLD_TX_TIER=${DFLD_TX_TIER:-}
 {% if dfld_ingest_url is defined and dfld_ingest_url | length > 0 %}
       - DFLD_INGEST_URL=${DFLD_INGEST_URL:-{{ dfld_ingest_url }}}
 {% endif %}
@@ -165,7 +167,7 @@ services:
       - homepage.group=Infrastructure
       - homepage.name=tsdb2http
       - homepage.icon=/icons/server-upload-icon.svg
-      - homepage.description=Backfill SPL via HTTPS ({{ dfld_tx_tier }})
+      - homepage.description=Backfill SPL via HTTPS ({{ dfld_backfill_interval }})
       - homepage.showStats=true
     networks:
       - network
@@ -198,7 +200,12 @@ services:
       - network
 {% endif %}
 
-{% if mqtt_bridged_broker is defined and mqtt_bridged_broker | length > 0 and mqtt_bridged_rename is defined and mqtt_bridged_rename | length > 0 %}
+{# mqtt2mqtt = Live-MQTT-Bridge zum DFLD-Server. Gating-Logik:
+   - mqtt_bridged_broker + mqtt_bridged_rename muessen konfiguriert sein (was-bridgen)
+   - dfld_live_enabled muss true sein (ob-bridgen). Default true via inventory.
+   Default-true heisst: Bestandsstationen ohne dfld_live_enabled-Feld in
+   dfld.yml verhalten sich wie bisher. #}
+{% if mqtt_bridged_broker is defined and mqtt_bridged_broker | length > 0 and mqtt_bridged_rename is defined and mqtt_bridged_rename | length > 0 and (dfld_live_enabled | default(true)) %}
   mqtt2mqtt:
     image: dfld_box
     restart: unless-stopped
