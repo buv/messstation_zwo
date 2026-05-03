@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# dfld-config — Wrapper.
+#
+# Baut + startet den TUI-Container (Bash + whiptail) und mountet das
+# aktuelle Verzeichnis als /tmp im Container, sodass die generierte
+# dfld.yml im cwd des Aufrufers landet.
+#
+# Voraussetzung: podman oder docker installiert auf dem Host.
+#
+# Aufrufer-Workflow:
+#   cd ~/projects/dfld/messstation_zwo
+#   tools/dfld-config/dfld-config     # interaktive TUI, schreibt ./dfld.yml
+#   ./install_messstation.sh --mode mini <pi-ip>
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TAG="dfld-config:latest"
+
+# Container-Runtime auswählen (Pattern aus install_messstation.sh)
+RUNTIME="${DFLD_CONFIG_RUNTIME:-}"
+if [[ -z "$RUNTIME" ]]; then
+    if   command -v podman >/dev/null 2>&1; then RUNTIME=podman
+    elif command -v docker >/dev/null 2>&1; then RUNTIME=docker
+    else
+        echo "Fehler: weder podman noch docker gefunden." >&2
+        exit 1
+    fi
+fi
+
+# Build (idempotent — podman/docker cachen layers)
+"$RUNTIME" build -q -t "$TAG" "$SCRIPT_DIR" >/dev/null
+
+# Run interaktiv. label=disable umgeht SELinux-Relabel-Konflikte auf
+# Bind-Mounts (Fedora/RHEL); auf Debian/Ubuntu harmlos.
+exec "$RUNTIME" run --rm -it --security-opt label=disable \
+    -v "$PWD":/tmp:rw \
+    "$TAG"
