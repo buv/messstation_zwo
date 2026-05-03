@@ -266,3 +266,29 @@ mqtt_bridged_broker: "broker.emqx.io:8883"
 mqtt_bridged_rename: "dfld/sensors/noise/ sensebox/cindy-s-test/"
 mqtt_bridged_tls: "true"
 ```
+
+#### SPL Backfill (zweite Übertragungsebene via HTTPS)
+
+Optionaler Container `tsdb2http` schickt periodisch SPL-Daten aus der lokalen InfluxDB an den DFLD-Backend-Endpoint `https://ingest.dfld.de/backfill/spl/<station>` (mTLS-authentifiziert mit demselben Pi-Client-Cert wie für VerneMQ-MQTT). Dient als zweite Übertragungsebene parallel oder anstelle des Live-MQTT-Pfads, je nach gewähltem Tier:
+
+```yaml
+dfld_tx_tier: "live"   # live | hourly | daily | off
+```
+
+| Tier | Live-MQTT | Backfill-Intervall | Bandbreite/Run | Use Case |
+|---|---|---|---|---|
+| `live` | parallel weiter | 1 h | ~80 KB gz | Standard-Stationen mit gutem WLAN. Backfill ist Reconciliation, ReplacingMergeTree dedupt im Backend. |
+| `hourly` | abschalten | 1 h | ~80 KB gz | LTE/Sat. Stündlicher Batch-Push als alleiniger Kanal. |
+| `daily` | abschalten | 24 h | ~1.5 MB gz | LTE-Volumen-Cap. Monitoring statt Realtime. |
+| `off` | unverändert | — | 0 | Container idle (oder nicht gerendert wenn schon im Inventory `off` steht). |
+
+Default in `inventory.yml` ist `live`. Per-Station-Override über `dfld.yml` möglich (greift via `dfld-generate-env.sh` ohne Re-Deploy, sobald systemd den Container neu startet).
+
+**State-Datei für manuellen Reload:** `/opt/dfld/tsdb2http/last-tx.txt` enthält den ISO-8601-Timestamp ab dem der nächste Lauf weitermacht. Catch-up eines bestimmten Zeitraums von Hand triggern:
+
+```bash
+echo "2026-04-30T00:00:00Z" | sudo tee /opt/dfld/tsdb2http/last-tx.txt
+sudo docker restart tsdb2http   # optional, sonst greift's beim nächsten Loop-Tick
+```
+
+Backfill chunked in 6h-Blöcken (max 21 600 Zeilen pro POST), wandert ohne Sleep durch lange Lücken durch. Server dedupt automatisch, ein parallel laufender Live-MQTT-Pfad und der Backfill stören sich nicht. Architektur-Doku im `dfld_server`-Repo: `docs/backfill-architecture.md`.

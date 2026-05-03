@@ -19,6 +19,14 @@ all:
     dfld_cksum: ""
     dfld_liveview: ""
     dfld_legacy: ""
+
+    # Backfill via HTTPS an ingest.dfld.de — siehe docs/backfill-architecture.md
+    # im dfld_server-Repo. Werte: live | hourly | daily | off
+    #   live   = Live-MQTT laeuft + stuendlicher Backfill als Reconciliation
+    #   hourly = nur stuendlicher Batch-Push (kein Live-MQTT noetig)
+    #   daily  = einmal pro Tag (LTE-Volumen-Cap)
+    #   off    = Container nicht rendern
+    dfld_tx_tier: "live"
     
     
     dfld_user: "dfld"

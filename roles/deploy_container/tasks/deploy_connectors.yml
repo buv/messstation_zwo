@@ -23,6 +23,15 @@
   changed_when: generate_connectors_result.rc == 0
   failed_when: generate_connectors_result.rc == 2
 
+- name: Create tsdb2http state directory (state-File last-tx.txt überlebt Container-Recreate)
+  ansible.builtin.file:
+    path: "{{ dfld_dir }}/tsdb2http"
+    owner: "{{ dfld_user_info.uid }}"
+    group: "{{ dfld_user_info.group }}"
+    state: directory
+    mode: '0755'
+  when: dfld_tx_tier is defined and dfld_tx_tier != "off"
+
 - name: Write docker compose file for connectors
   ansible.builtin.template:
     src: "templates/container/connectors-compose.yml.j2"
