@@ -53,7 +53,10 @@ STATE_FILE  = STATE_DIR / 'last-tx.txt'
 BAD_DIR     = STATE_DIR / 'bad-batches'
 CERT_PATH   = '/mqtt-certs/client-cert.pem'
 KEY_PATH    = '/mqtt-certs/client-key.pem'
-CA_PATH     = '/mqtt-certs/ca-cert.pem'
+# Server-Cert von ingest.dfld.de ist Let's Encrypt → System-CA-Bundle
+# (requests/certifi). Die DFLD-interne ca-cert.pem ist NUR fuer das
+# Server-seitige Verifizieren der Pi-Client-Certs zustaendig, nicht
+# fuer Pi-seitiges Verifizieren des Server-Certs.
 
 # Cap pro Batch — 6h × 1Hz = 21600 Zeilen, ~1.7 MB roh, ~250 KB gz.
 # Server akzeptiert 16 MB. Bei Wochen-Lange Catch-up nimmt die Loop
@@ -175,7 +178,7 @@ def post_batch(payload_gz):
         data=payload_gz,
         headers=headers,
         cert=(CERT_PATH, KEY_PATH),
-        verify=CA_PATH if pathlib.Path(CA_PATH).is_file() else True,
+        verify=True,
         timeout=60,
     )
     try:
