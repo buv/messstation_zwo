@@ -151,10 +151,12 @@ services:
       # ${VAR:-...}-Syntax laesst den User per dfld.yml-Edit ueberschreiben
       # (dfld-generate-env.sh schreibt nach dfld_user.env, systemd-path-watcher
       # reloaded den Container, kein Re-Deploy noetig).
-      # DFLD_TX_TIER bleibt als Legacy-Env mitgesetzt fuer dfld_user.env-
-      # Stationen die noch das alte Feld haben (tsdb2http.py akzeptiert beides).
+      # Beide Env-Namen werden gesetzt — sowohl alte als auch neue
+      # tsdb2http.py-Variante laeuft. Cross-Version-Sicherheit fuer den
+      # Roll-out-Zeitpunkt wo Image evtl. noch alt ist (build-images-Role
+      # rebuildet nicht wenn Image existiert).
       - DFLD_BACKFILL_INTERVAL=${DFLD_BACKFILL_INTERVAL:-{{ dfld_backfill_interval }}}
-      - DFLD_TX_TIER=${DFLD_TX_TIER:-}
+      - DFLD_TX_TIER=${DFLD_TX_TIER:-{{ dfld_backfill_interval }}}
 {% if dfld_ingest_url is defined and dfld_ingest_url | length > 0 %}
       - DFLD_INGEST_URL=${DFLD_INGEST_URL:-{{ dfld_ingest_url }}}
 {% endif %}
