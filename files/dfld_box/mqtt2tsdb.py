@@ -93,9 +93,15 @@ def main():
                     # falls noch jemand int-ns sendet, wird das ebenfalls
                     # akzeptiert (zum nahtlosen Roll-out).
                     if isinstance(raw_ts, str):
-                        from datetime import datetime
+                        from datetime import datetime, timezone
                         dt = datetime.fromisoformat(raw_ts.replace('Z', '+00:00'))
-                        ts = int(dt.timestamp() * 1e9)
+                        # Drift-frei via timedelta-int-arithmetik. Naiver
+                        # int(dt.timestamp() * 1e9) verliert ca. 48% der μs-Werte
+                        # um 1 μs nach unten (Float-mantissa-Quantisierung bei
+                        # 1.7e18) — was Live/Backfill-Dedup im ReplacingMergeTree
+                        # bricht.
+                        delta = dt - datetime(1970, 1, 1, tzinfo=timezone.utc)
+                        ts = ((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds) * 1000
                     else:
                         ts = int(raw_ts)
                     del data["ts"]
