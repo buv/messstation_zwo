@@ -1,7 +1,9 @@
 import os
 import abc
 import sys
-import logging  
+import logging
+
+from dfld.util import iso_now_us  
 
 class DataSink(abc.ABC):
     def __init__(self):
@@ -123,7 +125,7 @@ class MqttDataSink(DataSink, abc.ABC):
             self.logger.error("Not connected to MQTT broker.")
             return
         
-        timestamp_ns = int(time.time() * 1_000_000_000)
+        timestamp_iso = iso_now_us()
         station_id = self.config.get('DFLD_STATION_ID', '')
         self.logger.debug(f"Station ID: '{station_id}', Metadata dict: {metadata_dict}")
         if not station_id:
@@ -139,7 +141,7 @@ class MqttDataSink(DataSink, abc.ABC):
                     "station": station_id,
                     "key": key,
                     "value": value,
-                    "ts": timestamp_ns
+                    "ts": timestamp_iso
                 }
                 
                 json_message = json.dumps(meta_message)

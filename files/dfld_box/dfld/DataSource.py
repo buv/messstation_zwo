@@ -4,6 +4,8 @@ import sys
 import time
 import logging
 
+from dfld.util import iso_now_us
+
 class DataSource(abc.ABC):
     def __init__(self):
         self.connected = False
@@ -63,7 +65,7 @@ class Bme280DataSource(DataSource, abc.ABC):
             raise RuntimeError("Data source not connected. Call init() first.")
         try:
             data = bme280.sample(self.bus, self.i2c_addr, self.calibration_params)
-            ts = int(time.time() * 1e9)
+            ts = iso_now_us()
             return {
                 "temperature": data.temperature,
                 "pressure": data.pressure,
@@ -141,7 +143,7 @@ class DNMSi2cDataSource(DataSource, abc.ABC):
             self.bus.i2c_rdwr(write, read)
             data = self.floats_from_bytes(list(read))
 
-            ts = int(time.time() * 1e9)
+            ts = iso_now_us()
             data = {
                 # round to 2 decimal places
                 "dB_A_avg": round(data[0], 2),
@@ -207,7 +209,7 @@ class AkModulDataSource(DataSource, abc.ABC):
             raise RuntimeError("Data source not connected. Call init() first.")
         try:
             b = int.from_bytes(self.ser.read(1))
-            ts = int(time.time() * 1e9)
+            ts = iso_now_us()
             if b>0:
                 data = (b-50)/2
                 return {"dB_A_avg": data, "ts": ts}
@@ -251,7 +253,7 @@ class DNMSDataSource(DataSource, abc.ABC):
             raise RuntimeError("Data source not connected. Call init() first.")
         try:
             line = self.ser.readline()
-            ts = int(time.time() * 1e9)
+            ts = iso_now_us()
             self.logger.debug(f"Read line from DNMS: {line}")
             if line:
                 data_str = line.rstrip().decode('utf-8').split(':')
@@ -302,7 +304,7 @@ class UdpDataSource(DataSource, abc.ABC):
             raise RuntimeError("Data source not connected. Call init() first.")
         try:
             data_bytes, addr = self.sock.recvfrom(1024)  # buffer size is 1024 bytes
-            ts = int(time.time() * 1e9)
+            ts = iso_now_us()
             self.logger.debug(f"Received UDP data from {addr}: {data_bytes}")
             if data_bytes:
                 data_json = data_bytes.decode('utf-8')

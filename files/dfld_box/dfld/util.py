@@ -1,4 +1,23 @@
 import codecs
+import time
+from datetime import datetime, timezone
+
+
+def iso_now_us():
+    """Aktuelle Zeit als ISO-8601-String mit Mikrosekunden-Praezision (UTC, Z-suffix).
+
+    Wire-Format-Vertrag fuer den ts-Datentyp im DFLD-Stack: alle Pi-Container
+    publishen ts in genau diesem Format. Das vermeidet Float-Praezisions-
+    Probleme die bei int64-ns-JSON-Parsing entstehen (>2^53 nicht exakt in
+    float64, was zu off-by-1-mikrosekunden zwischen Live- und Backfill-Pfad
+    fuehrte).
+
+    Format-Beispiel: "2026-05-10T12:30:00.779682Z"
+    """
+    return datetime.now(tz=timezone.utc).isoformat(timespec='microseconds').replace('+00:00', 'Z')
+
+
+
 
 # encode a string from clear text to obfuscated text
 def obfuscate_string(string):

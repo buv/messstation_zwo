@@ -163,16 +163,30 @@ def fetch_chunk(client, since_ts):
     return [dict(zip(cols, v)) for v in series['values']]
 
 
-def build_jsonl(rows):
-    """Influx-Rows → NDJSON-bytes nach Wire-Format-Vertrag.
+def _ts_to_us_iso(t):
+    """Influx-ts (ISO mit ns) explizit auf μs truncaten — entspricht FORMAT_A.
 
-    `time` kommt aus Influx mit `Z`-Suffix und ns-Praezision direkt
-    nutzbar; min/max sind floats oder None (= JSON null).
+    Garantiert dass Backfill-Pfad denselben ts-String produziert wie Live-
+    Pfad (sensor2mqtt.iso_now_us liefert direkt μs). Verhindert off-by-1-μs
+    durch unterschiedliche Praezisions-Niveaus zwischen den Pfaden.
     """
+    # Influx-Output: "2026-05-10T12:30:00.779682816Z" oder ".779682Z" oder
+    # auch "...:00Z" (ohne fractional). Erst Z trennen, dann fractional
+    # auf max 6 Stellen string-truncaten — kein Float, exakt.
+    base, _z, _ = t.partition('Z')
+    if '.' in base:
+        sec, frac = base.split('.', 1)
+        frac_us = (frac + '000000')[:6]   # rechtsseitig auffuellen, dann croppen
+        return f"{sec}.{frac_us}Z"
+    return f"{base}.000000Z"
+
+
+def build_jsonl(rows):
+    """Influx-Rows → NDJSON-bytes nach Wire-Format-Vertrag (FORMAT_A: ISO-μs)."""
     lines = []
     for r in rows:
         rec = {
-            'ts':       r['time'],
+            'ts':       _ts_to_us_iso(r['time']),
             'dB_A_avg': r['dB_A_avg'],
             'dB_A_min': r.get('dB_A_min'),
             'dB_A_max': r.get('dB_A_max'),

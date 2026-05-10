@@ -85,10 +85,20 @@ def main():
         try:
             data = json.loads(payload)
             if isinstance(data, dict):
-                ts = int(time.time() * 1e9)  # aktueller Zeitstempel in Nanosekunden
+                ts = int(time.time() * 1e9)  # Fallback: aktueller Zeitstempel in Nanosekunden
                 if "ts" in data:
-                    ts = int(data["ts"])  
-                    del data["ts"]  
+                    raw_ts = data["ts"]
+                    # FORMAT_A: ts ist ISO-8601-String mit μs-Praezision
+                    # (z.B. "2026-05-10T12:30:00.779682Z"). Backwards-compat:
+                    # falls noch jemand int-ns sendet, wird das ebenfalls
+                    # akzeptiert (zum nahtlosen Roll-out).
+                    if isinstance(raw_ts, str):
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(raw_ts.replace('Z', '+00:00'))
+                        ts = int(dt.timestamp() * 1e9)
+                    else:
+                        ts = int(raw_ts)
+                    del data["ts"]
                 # move tag keys to separate dict
                 tags = {k: str(data[k]) for k in tag_keys if k in data}
                 for k in tags.keys():
