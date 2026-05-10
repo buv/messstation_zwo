@@ -56,3 +56,24 @@
     name: dfld-wlan-power-save-off.service
     enabled: true
     daemon_reload: true
+
+# BCM43430 (Pi Zero 2W) hat fehlerhafte Firmware für mehrere WLAN-Features,
+# die mit modernen APs (WPA2/WPA3-Mixed-Mode, z.B. FRITZ!Box 6490) zu
+# Verbindungsabbrüchen führen. Die Optionen sind mittlerweile auch der
+# empfohlene Default in Raspberry Pi OS und Home Assistant OS.
+# Quellen: raspberrypi/firmware#1973, RPi-Distro/firmware-nonfree#23,
+#          home-assistant/operating-system PR#4056
+- name: Configure brcmfmac kernel module for WLAN stability
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/brcmfmac.conf
+    content: |
+      # roamoff=1         – kein aktives AP-Roaming (sinnvoll für stationäre Geräte)
+      # feature_disable=0x282000 deaktiviert:
+      #   0x002000 FWSUP  – 4-Way-Handshake-Offloading; fällt auf wpa_supplicant
+      #                     (Software) zurück, zuverlässiger als Hardware-Impl.
+      #   0x080000 SAE    – WPA3-Authentifizierung, inkompatibel mit manchen APs
+      #   0x200000 OBSS   – WLAN-Kanal-Scanning (verursacht Verbindungsunterbrechungen)
+      options brcmfmac roamoff=1 feature_disable=0x282000
+    owner: root
+    group: root
+    mode: '0644'
