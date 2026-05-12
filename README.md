@@ -88,11 +88,13 @@ Pubkey auf den Pi bringen (einmalig, vom Host aus):
 ssh-copy-id -f -i controller/id_ed25519.pub <user>@<IP>
 ```
 
-**Optional — mTLS-Zertifikate für externen MQTT-Broker:** Wird der externe MQTT-Broker per mTLS geschützt, müssen die Client-Zertifikate *vor* dem Deployment als Archiv auf den Pi gelegt werden. Die Ansible-Rolle entpackt sie während der Installation automatisch nach `/opt/dfld`:
+**mTLS-Zertifikate für die Datenübertragung an DFLD:** Damit die Pi Daten an `mqtt.dfld.de:8883` (Live-Stream) und `ingest.dfld.de:443` (Backfill) senden kann, sind Client-Zertifikate erforderlich. Das Archiv muss *vor* dem Deployment auf die Pi kopiert werden — die Ansible-Rolle entpackt es während der Installation automatisch nach `/opt/dfld/certs/`:
 
 ```bash
-scp mqtt-client-certs.tgz <user>@<IP>:/home/dfld/
+scp dfld-client-certs.tgz <user>@<IP>:/home/dfld/
 ```
+
+Ohne dieses Archiv läuft die Pi lokal (Sensor + InfluxDB-Buffer), kann aber keine Daten weiterleiten — sinnvoll für reine Diagnose-Setups, nicht für produktive Stationen.
 
 **Zweiter Aufruf** — führt das eigentliche Deployment aus:
 
@@ -122,6 +124,43 @@ vi dfld.yml
 Mehr zum Thema `ansible.cfg` und Inventorys findet sich in der [Ansible Dokumentation](https://docs.ansible.com/ansible/latest/index.html).
 
 ## Konfiguration nach der Installation
+
+### SD-Klon-Workflow für neue Stationen
+
+Wenn eine bereits installierte Pi als Vorlage für eine weitere Station via SD-Karten-Klon übernommen wird, sind die Daten in der lokalen InfluxDB und die Container-Konfiguration noch unter der alten Stations-ID. Damit beim ersten Boot der Klon-Pi keine Daten unter falscher ID an den DFLD-Server gehen, gibt es einen "Freeze"-Mechanismus.
+
+**Marker-File:** `/boot/firmware/dfld-freeze` — wenn vorhanden, startet `dfld-connectors.service` die schreibenden Container nicht. Der Marker liegt in der Boot-Partition und wird beim SD-Klon mitkopiert; geklonte Karten booten also automatisch im Freeze-Zustand.
+
+**Workflow:**
+
+1. **Master-Pi (Quelle):**
+   ```bash
+   sudo dfld-config
+   # → Hauptmenü → W (Wartung) → Freeze setzen
+   # Container werden gestoppt, Marker gesetzt
+   ```
+   Pi herunterfahren, SD-Karte entnehmen.
+
+2. **SD-Karte klonen** (z.B. mit `dd`, Pi Imager, BalenaEtcher).
+
+3. **Klon-Pi (Ziel):** SD-Karte einsetzen, booten.
+   - `dfld-connectors.service` erkennt Marker → Container bleiben aus
+   - System ist erreichbar via SSH (Infrastructure-Container wie InfluxDB laufen)
+
+4. Auf dem Klon-Pi:
+   ```bash
+   sudo dfld-config
+   # → Station-ID anpassen (Region/Station)
+   # → Geo-Koordinaten anpassen
+   # → Wartung → TSDB zurücksetzen
+   #     (löscht SPL/Flyover-Daten der alten Station aus der lokalen InfluxDB)
+   # → Wartung → Freeze aufheben (Container werden gestartet)
+   # → Speichern und Beenden
+   ```
+
+5. **Master-Pi:** Freeze wieder aufheben (`sudo dfld-config → Wartung → Freeze aufheben`), normaler Betrieb.
+
+**Wichtig zur TSDB-Reset-Sicherung:** Der Reset verlangt eine Doppel-Bestätigung — beim zweiten Schritt muss der Operator exakt `RESET <station-id>` tippen (z.B. `RESET 001-322`). Verhindert versehentliches Auslösen und verifiziert dass die richtige Pi vor einem steht.
 
 ### WLAN-Konfiguration ändern (Offline)
 

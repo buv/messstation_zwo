@@ -16,9 +16,9 @@
     group: "{{ dfld_user_info.group }}"
     mode: '0644'
 
-- name: Create mqtt-certs folder for client certificates
+- name: Create certs folder for client certificates
   ansible.builtin.file:
-    path: "{{ dfld_dir }}/mqtt-certs"
+    path: "{{ dfld_dir }}/certs"
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     state: directory
@@ -32,31 +32,53 @@
   become: false
 
 - name: Extract client certificates if archive exists
+  # tgz enthaelt historisch ein "mqtt-certs/"-Top-Verzeichnis, die Code-
+  # Pfade erwarten aber "certs/". --strip-components=1 entfernt das Prefix
+  # beim Entpacken, files landen direkt in {{ dfld_dir }}/certs/.
   ansible.builtin.unarchive:
     src: "{{ playbook_dir }}/client-certs.tgz"
-    dest: "{{ dfld_dir }}/mqtt-certs"
+    dest: "{{ dfld_dir }}/certs"
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     mode: '0644'
     remote_src: false
+    extra_opts: ['--strip-components=1']
   when: client_certs_archive.stat.exists
 
 - name: Set secure permissions for private key
   ansible.builtin.file:
-    path: "{{ dfld_dir }}/mqtt-certs/client-key.pem"
+    path: "{{ dfld_dir }}/certs/client-key.pem"
     mode: '0600'
   when: client_certs_archive.stat.exists
 
-- name: Check if mqtt-client-certs.tgz exists at /home/dfld on the target
+- name: Check if dfld-client-certs.tgz exists at /home/dfld on the target
+  # Operator scp't das Archiv vor dem Ansible-Lauf nach /home/dfld auf
+  # die Pi — Datei mit privaten Schluesseln gehoert nicht ins Repo.
+  # Pflicht-Schritt fuer alle Stationen die Daten an mqtt.dfld.de oder
+  # ingest.dfld.de uebertragen (siehe README "mTLS-Zertifikate").
   ansible.builtin.stat:
-    path: /home/dfld/mqtt-client-certs.tgz
-  register: target_mqtt_client_certs
+    path: /home/dfld/dfld-client-certs.tgz
+  register: target_dfld_client_certs
 
-- name: Extract mqtt-client-certs.tgz into /opt/dfld
+- name: Extract dfld-client-certs.tgz into /opt/dfld/certs
+  # Top-Verzeichnis im tgz wird gestripped damit die files direkt in
+  # certs/ landen statt in certs/dfld-client-certs/.
   ansible.builtin.unarchive:
-    src: /home/dfld/mqtt-client-certs.tgz
-    dest: "{{ dfld_dir }}"
+    src: /home/dfld/dfld-client-certs.tgz
+    dest: "{{ dfld_dir }}/certs"
     owner: "{{ dfld_user_info.uid }}"
     group: "{{ dfld_user_info.group }}"
     remote_src: true
-  when: target_mqtt_client_certs.stat.exists
+    extra_opts: ['--strip-components=1']
+  when: target_dfld_client_certs.stat.exists
+
+- name: Migrate legacy /opt/dfld/mqtt-certs -> /opt/dfld/certs (one-shot Umzug)
+  # Pi-Bestand vor dem Umbenennen hatte das Verzeichnis als "mqtt-certs".
+  # Idempotent durch creates-Marker (laeuft nur wenn certs/ leer ist).
+  ansible.builtin.shell: |
+    if [ -d {{ dfld_dir }}/mqtt-certs ]; then
+      cp -a {{ dfld_dir }}/mqtt-certs/. {{ dfld_dir }}/certs/
+      rm -rf {{ dfld_dir }}/mqtt-certs
+    fi
+  args:
+    creates: "{{ dfld_dir }}/certs/client-cert.pem"

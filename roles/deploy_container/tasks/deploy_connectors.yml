@@ -53,19 +53,67 @@
     wait: true
 
 - name: Create boot service for connectors
+  # Startet die connector-Stack beim Boot. Compose-Restart-Policy ist
+  # "no" (siehe connectors-compose.yml.j2) damit Docker-Daemon allein
+  # die Stack NICHT hochbringt — Steuerung laeuft nur ueber diesen
+  # Service. Pre-Check auf /boot/firmware/dfld-freeze blockiert den
+  # Start bei aktivem Freeze (siehe README "SD-Klon-Workflow").
   ansible.builtin.copy:
-    dest: /etc/systemd/system/dfld-connectors-reload.service
+    dest: /etc/systemd/system/dfld-connectors.service
     content: |
       [Unit]
-      Description=Reload DFLD Connectors Stack if config changed
+      Description=DFLD Connectors Stack (sensor2mqtt, mqtt2tsdb, tsdb2http, ...)
       After=docker.service network-online.target
       Requires=docker.service
       Wants=network-online.target
 
       [Service]
       Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory={{ dfld_dir }}/connectors
+      # Freeze-Check: wenn Marker da → exit 1 → ExecStart läuft nicht.
+      # Marker liegt in /boot/firmware/ damit er bei SD-Klon mitgenommen wird.
+      ExecStartPre=/bin/bash -c '\
+        if [ -f /boot/firmware/dfld-freeze ]; then \
+          /usr/bin/logger -t dfld-connectors "FREEZE marker present at /boot/firmware/dfld-freeze, refusing startup"; \
+          exit 1; \
+        fi'
+      # Validate-Check: dfld-config validate exit 1 wenn Pflichtfelder fehlen.
+      # systemd logged Stderr-Liste der fehlenden Felder ins journal.
+      ExecStartPre=/usr/local/bin/dfld-config validate
+      ExecStart=/usr/bin/docker compose -f {{ dfld_dir }}/connectors/docker-compose.yml --env-file {{ dfld_dir }}/connectors/dfld_user.env --env-file {{ dfld_dir }}/connectors/docker-compose.env up -d
+      ExecStop=/usr/bin/docker compose -f {{ dfld_dir }}/connectors/docker-compose.yml --env-file {{ dfld_dir }}/connectors/dfld_user.env --env-file {{ dfld_dir }}/connectors/docker-compose.env stop
+
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create reload service (config-watcher)
+  # Wird vom Path-Watcher auf dfld.yml getriggert. Generiert dfld_user.env
+  # neu und macht --force-recreate falls etwas Aenderung gab. Respektiert
+  # Freeze-Marker analog dfld-connectors.service.
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/dfld-connectors-reload.service
+    content: |
+      [Unit]
+      Description=Reload DFLD Connectors Stack if config changed
+      After=docker.service network-online.target dfld-connectors.service
+      Requires=docker.service
+
+      [Service]
+      Type=oneshot
       WorkingDirectory={{ dfld_dir }}/connectors
       ExecStart=/bin/bash -c '\
+        if [ -f /boot/firmware/dfld-freeze ]; then \
+          echo "FREEZE active — skip reload (would have re-created stopped containers)"; \
+          exit 0; \
+        fi; \
+        if ! /usr/local/bin/dfld-config validate; then \
+          echo "dfld.yml invalid — skip reload"; \
+          exit 0; \
+        fi; \
         if /usr/local/bin/dfld-generate-env.sh {{ conf_dir }}/dfld.yml {{ dfld_dir }}/connectors/dfld_user.env {{ dfld_user_info.uid }}:{{ dfld_user_info.group }}; then \
           echo "Environment file was updated, reloading containers..."; \
           /usr/bin/docker compose -f {{ dfld_dir }}/connectors/docker-compose.yml --env-file {{ dfld_dir }}/connectors/dfld_user.env --env-file {{ dfld_dir }}/connectors/docker-compose.env up -d --force-recreate; \
@@ -79,8 +127,11 @@
     group: root
     mode: '0644'
 
-- name: Enable connectors boot service
+- name: Enable connectors boot + reload services
   ansible.builtin.systemd:
-    name: dfld-connectors-reload.service
+    name: "{{ item }}"
     enabled: true
     daemon_reload: true
+  loop:
+    - dfld-connectors.service
+    - dfld-connectors-reload.service

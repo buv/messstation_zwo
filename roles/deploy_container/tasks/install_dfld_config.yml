@@ -10,3 +10,14 @@
     owner: root
     group: root
     mode: '0755'
+
+- name: Install First-Boot-Hook (auto-launch dfld-config bei ungueltigem YAML oder aktivem Freeze)
+  # /etc/profile.d/ wird von /etc/profile bei jedem interaktiven Login
+  # gesourced (login shells). Hook erkennt unkonfigurierte Stationen
+  # bzw. den SD-Klon-Freeze-Zustand und bietet TUI direkt an.
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/dfld-firstboot.sh"
+    dest: /etc/profile.d/dfld-firstboot.sh
+    owner: root
+    group: root
+    mode: '0644'

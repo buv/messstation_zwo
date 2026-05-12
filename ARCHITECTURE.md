@@ -267,7 +267,7 @@ Ansible Controller
 ### Konfigurationsdateien
 - `/boot/firmware/dfld.yml` - Hauptkonfiguration (YAML)
 - `/opt/dfld/` - Container-Daten und Logs
-- `/opt/dfld/mqtt-certs/` - TLS-Zertifikate für MQTT Bridge
+- `/opt/dfld/certs/` - TLS-Zertifikate für MQTT Bridge
 
 ## Skalierbarkeit & Erweiterbarkeit
 
@@ -306,7 +306,7 @@ Ansible Controller
 ### Credential Management
 - Passwörter in `inventory.yml` (nicht in Git)
 - Umgebungsvariablen in Containern
-- Zertifikate in `/opt/dfld/mqtt-certs/` (600 Permissions)
+- Zertifikate in `/opt/dfld/certs/` (600 Permissions)
 
 ## Monitoring & Debugging
 

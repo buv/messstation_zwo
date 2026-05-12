@@ -1,8 +1,15 @@
+# Restart-Policy fuer alle connector-Container: on-failure.
+# Begruendung: Boot-Start passiert via dfld-connectors.service (mit
+# Freeze-Marker-Pre-Check), nicht via Docker-Daemon — daher kein
+# unless-stopped. on-failure gibt uns trotzdem Crash-Resilienz waehrend
+# des Betriebs (z.B. wenn ein Container wegen Sensor-Fehler exit'd).
+# Bei Pi-Boot mit Freeze bleibt alles aus; bei Boot ohne Freeze startet
+# der systemd-Service alles via 'docker compose up -d'.
 services:
   # Unified sensor to MQTT service - replaces individual sensor services
   sensor2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: sensor2mqtt
     entrypoint: python /dfld/sensor2mqtt.py
     # High priority for sensor data collection
@@ -57,7 +64,7 @@ services:
 
   mqtt2tsdb:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: mqtt2tsdb
     entrypoint: python /dfld/mqtt2tsdb.py
     environment:
@@ -81,7 +88,7 @@ services:
 {% if dfld_legacy is defined and dfld_legacy | length > 0 %}
   tsdb2ftp:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: tsdb2ftp
     entrypoint: python /dfld/tsdb2ftp.py
     environment:
@@ -107,7 +114,7 @@ services:
 
   mqtt2liveview:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: mqtt2liveview
     entrypoint: python /dfld/mqtt2liveview.py
     environment:
@@ -137,7 +144,7 @@ services:
   # Architektur: docs/backfill-architecture.md im dfld_server-Repo.
   tsdb2http:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: tsdb2http
     entrypoint: python /dfld/tsdb2http.py
     environment:
@@ -163,7 +170,7 @@ services:
       - TZ=${TZ}
       - LOG_LEVEL=INFO
     volumes:
-      - {{ dfld_dir }}/mqtt-certs:/mqtt-certs:ro
+      - {{ dfld_dir }}/certs:/certs:ro
       - {{ dfld_dir }}/tsdb2http:/var/lib/tsdb2http
     labels:
       - homepage.group=Infrastructure
@@ -178,7 +185,7 @@ services:
 {% if osm_station_id is defined and osm_station_id | length > 0 and osm_sensors is defined and osm_sensors | length > 0 and osm_api_key is defined and osm_api_key | length > 0 %}
   tsdb2osm:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: tsdb2osm
     entrypoint: python /dfld/tsdb2osm.py
     environment:
@@ -210,7 +217,7 @@ services:
 {% if mqtt_bridged_broker is defined and mqtt_bridged_broker | length > 0 and mqtt_bridged_rename is defined and mqtt_bridged_rename | length > 0 and (dfld_live_enabled | default(true)) %}
   mqtt2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: mqtt2mqtt
     entrypoint: python /dfld/mqtt2mqtt.py
     env_file:
@@ -221,14 +228,14 @@ services:
       - MQTT_BRIDGED_BROKER=${MQTT_BRIDGED_BROKER}
       - MQTT_BRIDGED_RENAME=${MQTT_BRIDGED_RENAME}
       - MQTT_BRIDGED_TLS=${MQTT_BRIDGED_TLS}
-      - MQTT_TLS_CA_CERT=/mqtt-certs/ca-cert.pem
-      - MQTT_TLS_CLIENT_CERT=/mqtt-certs/client-cert.pem
-      - MQTT_TLS_CLIENT_KEY=/mqtt-certs/client-key.pem
+      - MQTT_TLS_CA_CERT=/certs/ca-cert.pem
+      - MQTT_TLS_CLIENT_CERT=/certs/client-cert.pem
+      - MQTT_TLS_CLIENT_KEY=/certs/client-key.pem
       - MQTT_TLS_INSECURE=false
       - LOG_LEVEL=INFO
     volumes:
       - /etc/ssl/certs:/etc/ssl/certs:ro
-      - ${DOCKER_EXTERNAL_ROOT}/mqtt-certs:/mqtt-certs:ro
+      - ${DOCKER_EXTERNAL_ROOT}/certs:/certs:ro
     labels:
       - homepage.group=Infrastructure
       - homepage.name=mqtt2mqtt
@@ -242,7 +249,7 @@ services:
 {% if deployment_mode == "full" and hw_conf["ADSB_AVAILABLE"] == 1 %}
   adsb2mqtt:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: adsb2mqtt
     entrypoint: python /dfld/adsb2mqtt.py
     environment:
@@ -263,7 +270,7 @@ services:
 
   detect_flyover:
     image: dfld_box
-    restart: unless-stopped
+    restart: on-failure
     container_name: detect_flyover
     entrypoint: python /dfld/detect_flyover.py
     environment:

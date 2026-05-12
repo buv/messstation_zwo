@@ -37,14 +37,14 @@ Das System verwendet automatisch die Standard-CA-Zertifikate aus `/etc/ssl/certs
 
 Für MQTT Server mit selbst-signierten Zertifikaten:
 
-1. **CA-Zertifikat bereitstellen**: Kopiere das CA-Zertifikat nach `/opt/dfld/mqtt-certs/ca-cert.pem`
+1. **CA-Zertifikat bereitstellen**: Kopiere das CA-Zertifikat nach `/opt/dfld/certs/ca-cert.pem`
 
 2. **Konfiguration in dfld.yml**:
 ```yaml
 mqtt_bridged_broker: "mqtt.example.com:8883"
 mqtt_bridged_rename: "dfld/sensors/noise sensebox/my-station"
 mqtt_bridged_tls: true
-mqtt_bridged_ca_cert: "/mqtt-certs/ca-cert.pem"
+mqtt_bridged_ca_cert: "/certs/ca-cert.pem"
 ```
 
 **Wichtig**: Das Server-Zertifikat muss einen Subject Alternative Name (SAN) enthalten, der mit dem Hostnamen übereinstimmt. Andernfalls schlägt die Hostname-Verifikation fehl.
@@ -54,18 +54,18 @@ mqtt_bridged_ca_cert: "/mqtt-certs/ca-cert.pem"
 Für MQTT Server, die Client-Authentifizierung über Zertifikate verlangen:
 
 1. **Zertifikate bereitstellen**:
-   - CA-Zertifikat: `/opt/dfld/mqtt-certs/ca-cert.pem`
-   - Client-Zertifikat: `/opt/dfld/mqtt-certs/client-cert.pem`
-   - Client-Schlüssel: `/opt/dfld/mqtt-certs/client-key.pem`
+   - CA-Zertifikat: `/opt/dfld/certs/ca-cert.pem`
+   - Client-Zertifikat: `/opt/dfld/certs/client-cert.pem`
+   - Client-Schlüssel: `/opt/dfld/certs/client-key.pem`
 
 2. **Konfiguration in dfld.yml**:
 ```yaml
 mqtt_bridged_broker: "mqtt.dfld.de:8883"
 mqtt_bridged_rename: "dfld/sensors/noise sensebox/my-station"
 mqtt_bridged_tls: true
-mqtt_tls_ca_cert: "/mqtt-certs/ca-cert.pem"
-mqtt_tls_client_cert: "/mqtt-certs/client-cert.pem"
-mqtt_tls_client_key: "/mqtt-certs/client-key.pem"
+mqtt_tls_ca_cert: "/certs/ca-cert.pem"
+mqtt_tls_client_cert: "/certs/client-cert.pem"
+mqtt_tls_client_key: "/certs/client-key.pem"
 ```
 
 ## Topic-Umschreibung
@@ -97,20 +97,20 @@ mosquitto_sub -h broker.example.com -p 8883 -t 'sensebox/#' -v
 
 # Verschlüsselt mit selbst-signiertem Zertifikat
 mosquitto_sub -h mqtt.example.com -p 8883 -t 'sensebox/#' \
-  --cafile /opt/dfld/mqtt-certs/ca-cert.pem -v
+  --cafile /opt/dfld/certs/ca-cert.pem -v
 
 # Mit Client-Zertifikat (Mutual TLS)
 mosquitto_sub -h mqtt.example.com -p 8883 -t 'sensebox/#' \
-  --cafile /opt/dfld/mqtt-certs/ca-cert.pem \
-  --cert /opt/dfld/mqtt-certs/client-cert.pem \
-  --key /opt/dfld/mqtt-certs/client-key.pem -v
+  --cafile /opt/dfld/certs/ca-cert.pem \
+  --cert /opt/dfld/certs/client-cert.pem \
+  --key /opt/dfld/certs/client-key.pem -v
 ```
 
 ### Mit openssl (TLS-Verbindung testen)
 
 ```bash
 openssl s_client -connect mqtt.example.com:8883 \
-  -CAfile /opt/dfld/mqtt-certs/ca-cert.pem \
+  -CAfile /opt/dfld/certs/ca-cert.pem \
   -servername mqtt.example.com
 ```
 
@@ -135,7 +135,7 @@ sudo docker logs mqtt2mqtt 2>&1 | grep -E "ERROR|WARNING"
 Erfolgreiche Verbindung zeigt:
 ```
 INFO:Resolved mqtt.example.com to 1.2.3.4:8883
-INFO:TLS enabled with client certificate: /mqtt-certs/client-cert.pem
+INFO:TLS enabled with client certificate: /certs/client-cert.pem
 INFO:Remote MQTT connected to 1.2.3.4:8883
 INFO:Local MQTT connected, subscribed to "dfld/sensors/noise/#"
 ```
@@ -164,9 +164,9 @@ INFO:Local MQTT connected, subscribed to "dfld/sensors/noise/#"
 Wenn Client-Zertifikate nicht gelesen werden können:
 
 ```bash
-sudo chown -R 1000:1000 /opt/dfld/mqtt-certs/
-sudo chmod 644 /opt/dfld/mqtt-certs/*.pem
-sudo chmod 600 /opt/dfld/mqtt-certs/*-key.pem
+sudo chown -R 1000:1000 /opt/dfld/certs/
+sudo chmod 644 /opt/dfld/certs/*.pem
+sudo chmod 600 /opt/dfld/certs/*-key.pem
 ```
 
 ## Deaktivieren der Bridge
