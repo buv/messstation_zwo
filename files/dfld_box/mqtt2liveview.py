@@ -26,8 +26,14 @@ def main():
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=config.log_level)
     logging.info(f"Configuration: {config}")
-    
+
     lv = LiveView()
+
+    # Stats-Counter: erlauben dem dfld-status-Tool die UDP-Output-Rate
+    # zuverlaessig zu beobachten (analog zum 'Stats:'-Logger in
+    # mqtt2mqtt.py). Periodische Zeile alle 10 Minuten in der Hauptschleife.
+    sent_messages = 0
+    dropped_messages = 0
 
     # MQTT-Client für MQTT v3.1.1 über TCP
     client = mqtt.Client(
@@ -52,29 +58,40 @@ def main():
 
     # Callback: Nachricht empfangen
     def on_message(cli, userdata, msg):
+        nonlocal sent_messages, dropped_messages
         topic = msg.topic
         payload = msg.payload
         logging.debug(f"Message received on topic '{topic}': {payload}")
         logging.debug(f"LiveView active: {lv.active}")
 
         if not payload or not lv.active:
+            dropped_messages += 1
             return
-        
+
         # Versuche JSON-Payload zu parsen
         try:
             data = json.loads(payload)
             if isinstance(data, dict):
                 if "dB_A_avg" in data:
                     value = float(data["dB_A_avg"])
-                    lv.send(value)
-                    logging.debug(f"Data written to LiveView: {value} dBA")
+                    try:
+                        lv.send(value)
+                        sent_messages += 1
+                        logging.debug(f"Data written to LiveView: {value} dBA")
+                    except Exception as e:
+                        dropped_messages += 1
+                        logging.error(f"Error sending data: {e}")
                 else:
+                    dropped_messages += 1
                     logging.debug(f"JSON does not contain 'dB_A_avg'")
             else:
+                dropped_messages += 1
                 logging.warning(f"Received JSON is not a dict: {data}")
         except json.JSONDecodeError:
+            dropped_messages += 1
             logging.warning(f"Failed to decode JSON from payload: {payload}")
         except Exception as e:
+            dropped_messages += 1
             logging.error(f"Error processing message: {e}")
 
     # Callback: Verbindung verloren/geschlossen
@@ -100,14 +117,21 @@ def main():
     signal.signal(signal.SIGTERM, handle_sig)
 
     # Nicht-blockierender Connect: erlaubt Auto-Reconnect
+    last_stats_log = time.time()
     try:
         host, port = config.mqtt_server.split(":")
         port = int(port)
         client.connect_async(host, port, keepalive=config.keepalive)
         client.loop_start()
-        # Hauptschleife: Warten bis Stop
+        # Hauptschleife: Warten bis Stop, dabei periodischer Stats-Log.
         while not stop["flag"]:
             time.sleep(0.2)
+            if time.time() - last_stats_log > 600:
+                logging.info(
+                    f'Stats: sent={sent_messages}, dropped={dropped_messages}, '
+                    f'connected={client.is_connected()}'
+                )
+                last_stats_log = time.time()
     finally:
         # Loop sauber stoppen
         client.loop_stop()

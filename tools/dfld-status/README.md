@@ -64,9 +64,9 @@ Datenfluss-Indikator.
 | `homepage` | HTTP-Code auf `/` |
 | `telegraf` | `Wrote.*metrics`-Lines (letzte 5min) |
 | `ultrafeeder` | `aircraft.json` aircraft-Array length (sichtbar) |
-| `sensor2mqtt` | 5s mosquitto_sub auf `dfld/sensors/noise/spl` (live) + InfluxDB `count(spl) WHERE time > now()-3600.5s` (tsdb) |
-| `mqtt2tsdb` | InfluxDB `count(spl) WHERE time > now()-60.5s` |
-| `mqtt2liveview` | TBD — geplant: parse Stats-Logger (Option D) |
+| `sensor2mqtt` | 5s mosquitto_sub auf `dfld/sensors/noise/spl` (live) + InfluxDB `count(spl)` letzte 1h (tsdb) |
+| `mqtt2tsdb` | InfluxDB `count(spl)` letzte Minute |
+| `mqtt2liveview` | Parse periodische `Stats: sent=N, dropped=N, connected=Bool`-Logzeilen + Rate aus Delta |
 | `mqtt2mqtt` | Parse periodische `Stats: forwarded=N, dropped=N, connected=Bool`-Logzeilen + Rate aus Delta |
 | `tsdb2http` | mtime von `/opt/dfld/tsdb2http/last-tx.txt` |
 | `tsdb2ftp` | Letzter Log-Match `transfering.*via ftp` → Docker-Timestamp |
@@ -96,9 +96,11 @@ RichLog-Widget.
 - **Parallele Probes**: alle Container-Stati und Overview-Probes via
   goroutines + `sync.WaitGroup`. Ohne das würden serielle Calls
   (mqttRate 5s × N Container) den Refresh-Zyklus auf >30s aufblähen.
-- **InfluxDB-Glitch-Fix**: Window-Sekunden bekommen intern +500ms
-  und werden als `<ms>ms` (Integer) angehängt — `now()-3600500ms`.
-  Float-Sekunden (`3600.5s`) sind in InfluxQL Syntax-Error.
+- **InfluxDB-Glitch-Fix**: Window-Sekunden bekommen intern +1ms gegen
+  Boundary-Glitches und werden als `<ms>ms` (Integer) angehängt —
+  `now()-60001ms`. Float-Sekunden (`60.001s`) sind in InfluxQL
+  Syntax-Error. Polster-Größe in collect.go dokumentiert; bei DNMS-
+  Jitter <0.5ms ist 1ms reichlich.
 - **Atomic-Push beim Deploy**: das Pi-Binary mit `scp ... .new`
   hochladen, dann `mv -f` — verhindert "text file busy" wenn das
   laufende Tool sich selbst überschreiben würde.

@@ -214,7 +214,7 @@ type ContainerStatus struct {
 }
 
 var (
-	InfraContainers = []string{"mqtt", "influxdb", "grafana", "homepage", "telegraf", "ultrafeeder", "mqtt-x"}
+	InfraContainers = []string{"mqtt", "influxdb", "grafana", "homepage", "telegraf", "ultrafeeder"}
 	ConnContainers  = []string{"sensor2mqtt", "mqtt2tsdb", "mqtt2liveview", "mqtt2mqtt", "tsdb2http", "tsdb2ftp", "tsdb2osm", "adsb2mqtt", "detect_flyover"}
 )
 
@@ -340,8 +340,6 @@ func flowFor(name string) string {
 			return "aircraft.json: fail"
 		}
 		return fmt.Sprintf("aircraft: %d sichtbar", n)
-	case "mqtt-x":
-		return "(web debug)"
 	case "sensor2mqtt":
 		// Konsistent mit adsb2mqtt: 5s live-Sample auf dem MQTT-Topic
 		// (rohe Anzahl, kein Skalieren), parallel ein groesseres Window
@@ -374,46 +372,27 @@ func flowFor(name string) string {
 	case "mqtt2tsdb":
 		return fmt.Sprintf("spl/1m: %d (tsdb)", influxCount("spl", time.Minute))
 	case "mqtt2liveview":
-		// mqtt2liveview.py mappt 1:1 MQTT-Input auf UDP-Output (fire-and-forget),
-		// loggt aber KEINE pro-Message-Bestaetigung. Daher messen wir die
-		// Input-Seite per MQTT-Sample auf das gleiche Topic, das der Container
-		// subscribed (dfld/sensors/noise/spl/#) — das ist effektiv die
-		// UDP-Output-Rate, wenn errs=0.
-		var (
-			inCount int
-			errs    int
-			lastErr string
-			wg      sync.WaitGroup
-		)
-		wg.Add(3)
-		go func() {
-			defer wg.Done()
-			inCount = mqttCount("dfld/sensors/noise/spl/#", 5*time.Second)
-		}()
-		go func() {
-			defer wg.Done()
-			errs = logCount("mqtt2liveview", "ERROR", "1h")
-		}()
-		go func() {
-			defer wg.Done()
-			lastErr = "—"
-			if t, ok := lastLogMatch("mqtt2liveview", "ERROR"); ok {
-				lastErr = humanDur(time.Since(t)) + " ago"
-			}
-		}()
-		wg.Wait()
-		inPart := "?"
-		if inCount >= 0 {
-			inPart = fmt.Sprintf("%d", inCount)
+		// mqtt2liveview.py loggt alle 10min eine Stats-Zeile:
+		//   "Stats: sent=N, dropped=N, connected=True"
+		// (sent = erfolgreich an LiveView per UDP gesendet).
+		s := parseStatsLine("mqtt2liveview", "sent")
+		if !s.OK {
+			return "keine Stats (noch nicht geloggt?)"
 		}
-		return fmt.Sprintf("udp: %s msgs/5s (input)  errs/1h: %d  last-err: %s", inPart, errs, lastErr)
+		conn := "✓"
+		if !s.Connected {
+			conn = "✗"
+		}
+		ratePart := ""
+		if s.RatePerSec >= 0 {
+			ratePart = fmt.Sprintf("  rate=%.1f/s", s.RatePerSec)
+		}
+		return fmt.Sprintf("sent=%d  drop=%d  mqtt=%s%s", s.Primary, s.Dropped, conn, ratePart)
 	case "mqtt2mqtt":
-		// Parse die periodische Stats-Zeile aus dem Container-Log:
-		//   "Stats: forwarded=1411145, dropped=0, connected=True"
-		// Diese ist viel zuverlaessiger als grep nach "publish" (loggt
-		// das Skript gar nicht). Plus: ueber zwei aufeinanderfolgende
-		// Stats-Lines koennen wir die exakte Rate ableiten.
-		s := mqtt2mqttStats()
+		// Parse die periodische Stats-Zeile (alle 10min) aus dem Log:
+		//   "Stats: forwarded=N, dropped=N, connected=True"
+		// Zuverlaessig + Rate aus Delta zwischen letzten zwei Stats.
+		s := parseStatsLine("mqtt2mqtt", "forwarded")
 		if !s.OK {
 			return "keine Stats"
 		}
@@ -425,7 +404,7 @@ func flowFor(name string) string {
 		if s.RatePerSec >= 0 {
 			ratePart = fmt.Sprintf("  rate=%.1f/s", s.RatePerSec)
 		}
-		return fmt.Sprintf("fwd=%d  drop=%d  conn=%s%s", s.Forwarded, s.Dropped, conn, ratePart)
+		return fmt.Sprintf("fwd=%d  drop=%d  conn=%s%s", s.Primary, s.Dropped, conn, ratePart)
 	case "tsdb2http":
 		// Eigenes State-File (mtime = last successful HTTPS-batch).
 		st, err := os.Stat(pathTsdb2httpState)
@@ -506,57 +485,61 @@ func brokerPublishPerMin() float64 {
 	return v
 }
 
-// === mqtt2mqtt Stats-Line Parser ===
+// === Stats-Line Parser (generisch) ===
 //
-// Format aus dem mqtt2mqtt-Container (alle 10min):
-//   "2026-05-13 21:51:48,805 - INFO:Stats: forwarded=1411145, dropped=0, connected=True"
+// Format aus den Python-Containern (alle 10min auf stderr via logging):
+//   mqtt2mqtt:    "2026-05-13 21:51:48,805 - INFO:Stats: forwarded=N, dropped=N, connected=True"
+//   mqtt2liveview: "2026-05-13 21:51:48,805 - INFO:Stats: sent=N, dropped=N, connected=True"
 //
-// Wir lesen die letzten zwei Stats-Zeilen und leiten ggf. eine Rate ab.
+// Wir lesen die letzten zwei Stats-Zeilen und leiten — wenn moeglich —
+// die Rate aus dem Delta zwischen ihnen ab (zuverlaessig, weil die
+// Stats-Lines selbst-zeitgestempelt sind via Python-Logging-Format).
 
-type Mqtt2MqttStatsLine struct {
-	Forwarded  int
+type StatsLine struct {
+	Primary    int     // Primaerzaehler (forwarded / sent)
 	Dropped    int
 	Connected  bool
-	RatePerSec float64 // msg/s aus delta zur vorletzten Stats-Zeile, -1 falls n/a
+	RatePerSec float64 // delta(Primary) / delta(ts) zwischen letzten beiden Stats-Zeilen
 	OK         bool
 }
 
-var (
-	mqtt2mqttRe = regexp.MustCompile(`forwarded=(\d+).*?dropped=(\d+).*?connected=(\w+)`)
-	mqtt2mqttTs = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})`)
-)
+var statsTsRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})`)
 
-func mqtt2mqttStats() Mqtt2MqttStatsLine {
+// parseStatsLine zieht die letzten Stats-Zeilen aus dem Container-Log
+// und parst sie. `primaryKey` ist der Name des Hauptzaehlers in der
+// Log-Zeile (z.B. "forwarded" oder "sent").
+func parseStatsLine(container, primaryKey string) StatsLine {
+	res := StatsLine{RatePerSec: -1}
 	out, err := run(3*time.Second, "sh", "-c",
-		"docker logs --tail 400 mqtt2mqtt 2>&1 | grep 'Stats:' | tail -2")
-	res := Mqtt2MqttStatsLine{RatePerSec: -1}
+		fmt.Sprintf("docker logs --tail 400 %s 2>&1 | grep 'Stats:' | tail -2", container))
 	if err != nil || out == "" {
 		return res
 	}
+	lineRe := regexp.MustCompile(primaryKey + `=(\d+).*?dropped=(\d+).*?connected=(\w+)`)
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	last := lines[len(lines)-1]
-	m := mqtt2mqttRe.FindStringSubmatch(last)
+	m := lineRe.FindStringSubmatch(last)
 	if m == nil {
 		return res
 	}
-	res.Forwarded, _ = strconv.Atoi(m[1])
+	res.Primary, _ = strconv.Atoi(m[1])
 	res.Dropped, _ = strconv.Atoi(m[2])
 	res.Connected = m[3] == "True"
 	res.OK = true
 
 	if len(lines) >= 2 {
 		prev := lines[len(lines)-2]
-		mp := mqtt2mqttRe.FindStringSubmatch(prev)
-		tp := mqtt2mqttTs.FindStringSubmatch(prev)
-		tl := mqtt2mqttTs.FindStringSubmatch(last)
+		mp := lineRe.FindStringSubmatch(prev)
+		tp := statsTsRe.FindStringSubmatch(prev)
+		tl := statsTsRe.FindStringSubmatch(last)
 		if mp != nil && tp != nil && tl != nil {
-			fwdPrev, _ := strconv.Atoi(mp[1])
+			primPrev, _ := strconv.Atoi(mp[1])
 			t0, e0 := time.Parse("2006-01-02 15:04:05", tp[1])
 			t1, e1 := time.Parse("2006-01-02 15:04:05", tl[1])
 			if e0 == nil && e1 == nil && t1.After(t0) {
 				dt := t1.Sub(t0).Seconds()
 				if dt > 0 {
-					res.RatePerSec = float64(res.Forwarded-fwdPrev) / dt
+					res.RatePerSec = float64(res.Primary-primPrev) / dt
 				}
 			}
 		}
@@ -594,16 +577,20 @@ var influxCountRe = regexp.MustCompile(`(?m)^[0-9].*?\s+(\d+)\s*$`)
 
 // influxCount fuehrt SELECT count(*) FROM <measurement> WHERE time > now()-<window>.
 //
-// Wir addieren intern +500ms zum Window damit das Range-Boundary nicht
-// genau auf ein Sample-Tick faellt: bei 1Hz-Daten kann sonst die gerade
-// frische Messung mal mit, mal nicht gezaehlt werden, was bei Live-Refresh
-// als unangenehmer ±1 Glitch sichtbar wird (z.B. 59/60 statt stabil 60).
-// +500ms rueckt die Boundary garantiert zwischen zwei Messpunkte.
+// Wir addieren intern +1ms zum Window damit das Range-Boundary nicht
+// genau auf einen Sample-Tick faellt (InfluxDB-WHERE ist strikt ">").
+// Die +1ms ist Polster gegen Sample-Jitter und reicht aus, weil DNMS
+// real <0.5ms Jitter zwischen 1Hz-Samples zeigt (gemessen ueber 120
+// samples: min Δ=999.590ms, max Δ=1000.512ms, std-dev 0.08ms).
 //
-// WICHTIG: InfluxQL akzeptiert keine Float-Sekunden ("3600.5s" → parse error).
-// Daher verwenden wir Millisekunden-Suffix mit Integer-Wert ("3600500ms").
+// Pigeonhole-Hinweis: bei Window L und Sample-Periode T=1s ist die
+// Wahrscheinlichkeit fuer "ein zusaetzlicher Sample drin" (L-floor(L))/T.
+// Bei L=60.001s also 0.1% — praktisch nie ein 61 statt 60.
+//
+// WICHTIG: InfluxQL akzeptiert keine Float-Sekunden ("60.001s" → parse error).
+// Daher verwenden wir Millisekunden-Suffix mit Integer-Wert ("60001ms").
 func influxCount(measurement string, window time.Duration) int {
-	ms := window.Milliseconds() + 500
+	ms := window.Milliseconds() + 1
 	q := fmt.Sprintf("SELECT count(*) FROM %s WHERE time > now()-%dms", measurement, ms)
 	out, err := run(5*time.Second, "docker", "exec", "-i", "influxdb",
 		"influx", "-database", "dfld", "-execute", q)
