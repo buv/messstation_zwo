@@ -1,3 +1,2 @@
-# Build-Output (das arm64-Binary).
-dfld-status
-dfld-status.bin
+# Build-Output (arm64-Binary aus build.sh).
+build/
