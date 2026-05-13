@@ -70,23 +70,6 @@ services:
     depends_on:
       - influxdb
 
-  mqtt-x:
-    image: emqx/mqttx-web
-    container_name: mqtt-x
-    restart: unless-stopped
-    networks:
-      - network
-    ports:
-      - 8081:80
-    labels:
-      - homepage.group=DEV Tools
-      - homepage.href=http://{{ messstation_fqdn }}:8081
-      - homepage.target=_self
-      - homepage.name=MQTTX
-      - homepage.icon=/icons/mqttx.png
-      - homepage.description=Let's connect to the MQTT broker
-      - homepage.showStats=true
-
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage

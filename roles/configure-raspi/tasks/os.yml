@@ -19,6 +19,9 @@
       # Fuer dfld-config TUI (Bash + whiptail). Locale C.UTF-8 ist via
       # glibc immer da, daher kein locales-Paket noetig.
       - whiptail
+      # Fuer dfld-status (mqttCount-Probes via mosquitto_sub) und als
+      # CLI-Ersatz fuer den fruher containerisierten mqtt-x-Debugger.
+      - mosquitto-clients
     state: present
 
 - name: Get /boot/firmware/cmdline.txt
