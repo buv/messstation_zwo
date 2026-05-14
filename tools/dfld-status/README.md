@@ -107,13 +107,10 @@ RichLog-Widget.
 
 ## Status
 
-Funktional, getestet auf Pi 5 + Debian 13 trixie.
-
-Offen:
-- Ansible-Rolle `deploy_container/install_dfld_status.yml` (Build +
-  Install nach `/usr/local/bin/dfld-status`)
-- Option D: Stats-Logger in `mqtt2liveview.py` (analog zu mqtt2mqtt)
-  damit ein echter Sent-Counter parsbar wird statt nur errs/lastErr
+Funktional, getestet auf Pi 5 + Debian 13 trixie. Per Ansible-Rolle
+`deploy_container/install_dfld_status.yml` wird das Binary beim
+Vollinstall lokal cross-gebaut und nach `/usr/local/bin/dfld-status`
+auf der Pi abgelegt.
 
 ## Dateien
 

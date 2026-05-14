@@ -6,6 +6,9 @@
 - name: Install dfld-config TUI
   ansible.builtin.include_tasks: install_dfld_config.yml
 
+- name: Install dfld-status TUI
+  ansible.builtin.include_tasks: install_dfld_status.yml
+
 - name: Capture version information
   ansible.builtin.include_tasks: capture_version.yml
 

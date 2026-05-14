@@ -1,0 +1,32 @@
+---
+# Install dfld-status (Go-Binary, linux/arm64) nach /usr/local/bin/dfld-status.
+#
+# Im Gegensatz zu dfld-config (Bash-Skript direkt aus Repo kopiert) ist
+# dfld-status ein vorzubauendes Go-Artefakt. Der Build erfolgt lokal auf
+# dem Controller via tools/dfld-status/build.sh — das Skript cross-
+# compiliert im Container (podman/docker), das Resultat liegt unter
+# tools/dfld-status/build/dfld-status und wird per copy zur Pi uebertragen.
+#
+# Voraussetzung Controller: podman ODER docker installiert (build.sh
+# detektiert selbst). Runtime auf der Pi: mosquitto-clients (wird in
+# configure-raspi/tasks/os.yml mit installiert).
+
+- name: Build dfld-status binary (linux/arm64, controller-local cross-compile)
+  ansible.builtin.command:
+    cmd: bash {{ playbook_dir }}/tools/dfld-status/build.sh
+    chdir: "{{ playbook_dir }}/tools/dfld-status"
+  delegate_to: localhost
+  run_once: true
+  become: false
+  # build.sh nutzt Container-Layer-Cache — bei unveraendertem Code <1s.
+  # changed_when bewusst false; das eigentliche "hat sich was geaendert"
+  # entscheidet die copy-Task per Checksum.
+  changed_when: false
+
+- name: Copy dfld-status binary to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/tools/dfld-status/build/dfld-status"
+    dest: /usr/local/bin/dfld-status
+    owner: root
+    group: root
+    mode: '0755'
