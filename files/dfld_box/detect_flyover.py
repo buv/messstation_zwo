@@ -70,6 +70,14 @@ class Trajectory:
     def reset(self):
         self.traj = []
         self.min_dist = 1e9
+        # Snapshot der Geometrie am closest-point-Sample. Frueher nur
+        # min_dist als Skalar — jetzt halten wir alle Komponenten fest,
+        # damit das InfluxDB-Event dist_xy / alt / dist_z separat zeigen
+        # kann (statt nur einer 3D-Summe).
+        self.min_dist_xy = None     # horizontaler Abstand am Min
+        self.min_alt_baro = None    # baro-Hoehe in m am Min
+        self.min_alt_geom = None    # geom-Hoehe in m am Min (optional)
+        self.min_rssi = None        # RSSI am Min
         self.lambda_ = None
         self.v0 = None
         self.t0 = None
@@ -108,9 +116,16 @@ class Trajectory:
                 self.dist_0 = np.linalg.norm(self.v0 + self.lambda_ * d)
             self.v0 = v1
 
-            # update min distance
+            # update min distance — am neuen Minimum auch die geometrischen
+            # Komponenten snapshoten, damit write_event spaeter dist_xy /
+            # alt_baro / dist_z separat ausgeben kann.
             if self.min_dist > self.dist:
                 self.min_dist = self.dist
+                self.min_dist_xy = self.dist_xy
+                self.min_alt_baro = data['alt_baro'] * 0.3048
+                self.min_alt_geom = (data['alt_geom'] * 0.3048
+                                     if 'alt_geom' in data else None)
+                self.min_rssi = float(data['rssi'])
                 self.t0 = data['now']
 
             self.traj.append(coords)
@@ -142,7 +157,21 @@ class Trajectory:
             if k in self.info:
                 tags[k] = str(self.info[k]).strip()
 
-        fields = {'dist': float(self.dist), 'rssi': float(self.info.get('rssi', 0.0))}
+        # Wir schreiben die Komponenten dist_xy (horizontal) + dist_z
+        # (vertikal) statt einer 3D-Summe — die 3D-Distanz laesst sich
+        # ueber sqrt(dist_xy^2 + dist_z^2) rekonstruieren, falls noetig.
+        fields = {
+            'rssi': float(self.min_rssi),
+        }
+        if self.min_dist_xy is not None:
+            fields['dist_xy'] = float(self.min_dist_xy)
+        if self.min_alt_baro is not None:
+            fields['alt_baro'] = float(self.min_alt_baro)
+            # dist_z: vertikaler Abstand der Station-Hoehe zur Aircraft-Hoehe
+            # am closest-Point. positive = Aircraft drueber, negative = drunter.
+            fields['dist_z'] = float(self.min_alt_baro - self.pool.home[2])
+        if self.min_alt_geom is not None:
+            fields['alt_geom'] = float(self.min_alt_geom)
         if 'desc' in self.info:
             fields['descr'] = str(self.info['desc'])
 
