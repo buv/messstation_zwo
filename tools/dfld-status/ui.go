@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -71,7 +72,7 @@ func renderOverview(s Snapshot, w int) string {
 	disk := boxDisk(s, lipgloss.Width(row1))
 	flow := boxFlow(s, lipgloss.Width(row1))
 
-	footer := stMuted.Render(" [r] Aktualisieren   [2] Container-Detail   [3] Logs   [q] Beenden")
+	footer := stMuted.Render(" [r] Aktualisieren   [2] Container-Detail   [3] Logs   [4] SPL live   [5] Sensoren   [q] Beenden")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		header,
@@ -104,13 +105,13 @@ func renderHeader(s Snapshot, w int) string {
 }
 
 func boxSystem(s Snapshot) string {
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		kv("Modell", trim(s.System.PiModel, 22)),
-		kv("CPU", s.System.CPUTemp),
-		kv("Uptime", s.System.Uptime),
-		kv("RAM", s.System.Mem),
-		kv("WLAN", coalesce(s.System.WlanRSSI, "—")),
-	)
+	body := renderKVBlock([]kvItem{
+		{"Modell", trim(s.System.PiModel, 22)},
+		{"CPU", s.System.CPUTemp},
+		{"Uptime", s.System.Uptime},
+		{"RAM", s.System.Mem},
+		{"WLAN", coalesce(s.System.WlanRSSI, "—")},
+	})
 	return stBox.Width(34).Render(titleLine("System") + "\n" + body)
 }
 
@@ -139,13 +140,13 @@ func boxKonfig(s Snapshot) string {
 		bridge = fmt.Sprintf("an (TLS=%s)", coalesce(s.Cfg.MqttTLS, "?"))
 	}
 
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		kv("dfld.yml", conf),
-		kv("Live", live),
-		kv("Backfill", bf),
-		kv("OSM", osm),
-		kv("Bridge", bridge),
-	)
+	body := renderKVBlock([]kvItem{
+		{"dfld.yml", conf},
+		{"Live", live},
+		{"Backfill", bf},
+		{"OSM", osm},
+		{"Bridge", bridge},
+	})
 	return stBox.Width(34).Render(titleLine("Konfiguration") + "\n" + body)
 }
 
@@ -166,21 +167,19 @@ func boxSummary(s Snapshot) string {
 		connStr = stStatusOK.Render(connStr)
 	}
 
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		kv("Infrastructure", infraStr),
-		kv("Connectors", connStr),
-		"",
-		stMuted.Render("Details: Ansicht 2"),
-	)
+	body := renderKVBlock([]kvItem{
+		{"Infrastructure", infraStr},
+		{"Connectors", connStr},
+	}) + "\n\n" + stMuted.Render("Details: Ansicht 2")
 	return stBox.Width(30).Render(titleLine("Container") + "\n" + body)
 }
 
 func boxDisk(s Snapshot, w int) string {
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		kv("/", s.System.DiskRoot),
-		kv("/opt/dfld", s.System.DiskDfld),
-		kv("/boot/firmware", s.System.DiskBoot),
-	)
+	body := renderKVBlock([]kvItem{
+		{"/", s.System.DiskRoot},
+		{"/opt/dfld", s.System.DiskDfld},
+		{"/boot/firmware", s.System.DiskBoot},
+	})
 	return stBox.Width(w).Render(titleLine("Disk") + "\n" + body)
 }
 
@@ -208,14 +207,14 @@ func boxFlow(s Snapshot, w int) string {
 		aircraftStr = fmt.Sprintf("%d sichtbar", s.Aircraft)
 	}
 
-	body := lipgloss.JoinVertical(lipgloss.Left,
-		kv("spl/min", splStr),
-		kv("Broker publish", brokerStr),
-		kv("InfluxDB spl/5m", fmt.Sprintf("%d", s.Spl5m)),
-		kv("Aircraft sichtbar", aircraftStr),
-		kv("Flyover/h", fmt.Sprintf("%d", s.FlyH)),
-		kv("tsdb2http last-tx", s.TxAge),
-	)
+	body := renderKVBlock([]kvItem{
+		{"spl/min", splStr},
+		{"Broker publish", brokerStr},
+		{"InfluxDB spl/5m", fmt.Sprintf("%d", s.Spl5m)},
+		{"Aircraft sichtbar", aircraftStr},
+		{"Flyover/h", fmt.Sprintf("%d", s.FlyH)},
+		{"tsdb2http last-tx", s.TxAge},
+	})
 	return stBox.Width(w).Render(titleLine("Datenfluss") + "\n" + body)
 }
 
@@ -239,7 +238,7 @@ func renderContainers(s Snapshot, w int) string {
 	infra := containerSection("Infrastructure", s.Infra)
 	conn := containerSection("Connectors", s.Conn)
 
-	footer := stMuted.Render(" [r] Aktualisieren   [1] Übersicht   [3] Logs   [q] Beenden")
+	footer := stMuted.Render(" [r] Aktualisieren   [1] Übersicht   [3] Logs   [4] SPL live   [5] Sensoren   [q] Beenden")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		header,
@@ -302,11 +301,197 @@ func containerRow(c ContainerStatus) string {
 	return fmt.Sprintf(" %s %s %s %s  %s", glyph, name, state, rc, flow)
 }
 
+// === Render: SPL live chart ===
+//
+// Y-Achse fest auf [20, 100] dB(A), x-Achse = letzte N Sekunden (= Spalten).
+// Pro Sekunde 1 Sample, neueste rechts. Unicode-Block-Chars (1/8-Stufen)
+// fuer sub-row-Aufloesung — wirkt fluessiger als ganzzahlige Bars.
+
+const (
+	splYMin = 20.0
+	splYMax = 100.0
+)
+
+var splBlocks = []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'}
+
+func renderSplChart(ring *SplRing, w, h int) string {
+	const leftWidth = 6 // "100 ┤"
+	chartH := h - 5     // Header + Achse + Stats + Footer + 1 Puffer
+	if chartH < 5 {
+		chartH = 5
+	}
+	chartW := w - leftWidth - 2
+	if chartW < 10 {
+		chartW = 10
+	}
+
+	// Pulse: Ring auf chartW Spalten begrenzen (rechts-bündig).
+	ring.Resize(chartW)
+	samples := ring.Values()
+
+	yRange := splYMax - splYMin
+	pixelsPerRow := 8
+	totalPixels := chartH * pixelsPerRow
+
+	var sb strings.Builder
+	sb.WriteString(stTitle.Render(" SPL live  ▸  dfld/sensors/noise/spl"))
+	sb.WriteString("\n")
+
+	for row := 0; row < chartH; row++ {
+		rowFromBottom := chartH - 1 - row
+		// Y-Achsen-Label nur an "runden" Stellen (oben, Mitte, unten) —
+		// vermeidet krumme Zahlen wie "84.4 dB".
+		var label string
+		if row == 0 {
+			label = fmt.Sprintf("%4.0f ", splYMax)
+		} else if row == chartH-1 {
+			label = fmt.Sprintf("%4.0f ", splYMin)
+		} else if row == chartH/2 {
+			label = fmt.Sprintf("%4.0f ", splYMin+yRange/2)
+		} else {
+			label = "     "
+		}
+		sb.WriteString(stMuted.Render(label))
+		sb.WriteString(stMuted.Render("┤"))
+
+		// Padding links wenn weniger Samples als Spalten:
+		pad := chartW - len(samples)
+		if pad > 0 {
+			sb.WriteString(strings.Repeat(" ", pad))
+		}
+
+		pixelMin := rowFromBottom * pixelsPerRow
+		pixelMax := pixelMin + pixelsPerRow
+		for _, v := range samples {
+			if v < splYMin {
+				v = splYMin
+			}
+			if v > splYMax {
+				v = splYMax
+			}
+			pixel := int((v - splYMin) / yRange * float64(totalPixels))
+			if pixel < 0 {
+				pixel = 0
+			}
+			if pixel > totalPixels {
+				pixel = totalPixels
+			}
+			switch {
+			case pixel >= pixelMax:
+				sb.WriteRune('█')
+			case pixel > pixelMin:
+				sb.WriteRune(splBlocks[pixel-pixelMin])
+			default:
+				sb.WriteRune(' ')
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	// x-Achse
+	sb.WriteString("     " + stMuted.Render("└"+strings.Repeat("─", chartW)))
+	sb.WriteString("\n")
+	// Zeit-Markierung (älteste links, jetzt rechts)
+	leftMark := fmt.Sprintf(" -%ds", chartW)
+	rightMark := "now"
+	gap := chartW - len(leftMark) - len(rightMark)
+	if gap < 1 {
+		gap = 1
+	}
+	sb.WriteString("     ")
+	sb.WriteString(stMuted.Render(leftMark + strings.Repeat(" ", gap) + rightMark))
+	sb.WriteString("\n")
+
+	// Stats-Zeile
+	if ring.Len() > 0 {
+		mn, mx, avg := ring.Stats()
+		stats := fmt.Sprintf(" now %.1f dB(A)   min %.1f   max %.1f   avg %.1f   samples %d",
+			ring.Last(), mn, mx, avg, ring.Len())
+		sb.WriteString(stLabel.Render(stats))
+	} else {
+		sb.WriteString(stMuted.Render(" (warte auf erste MQTT-Message…)"))
+	}
+	sb.WriteString("\n")
+	sb.WriteString(stMuted.Render(" [1] Übersicht   [2] Container   [3] Logs   [5] Sensoren   [Esc] zurück   [q] Beenden"))
+
+	return sb.String()
+}
+
+// === Render: Sensoren-Liste ===
+
+func renderSensors(rows []SensorRow, w, h int) string {
+	header := stTitle.Render(" Sensoren-Liste  ▸  dfld/#")
+	footerNav := " [1] Übersicht   [2] Container   [3] Logs   [4] SPL   [Esc] zurück   [q] Beenden"
+	if len(rows) == 0 {
+		return header + "\n" + stMuted.Render("\n (warte auf erste MQTT-Message…)") +
+			"\n\n" + stMuted.Render(footerNav)
+	}
+
+	// Spaltenbreiten
+	topicW := 0
+	for _, r := range rows {
+		if len(r.Topic) > topicW {
+			topicW = len(r.Topic)
+		}
+	}
+	if topicW > 38 {
+		topicW = 38
+	}
+	if topicW < 20 {
+		topicW = 20
+	}
+	ageW := 10
+	payloadW := w - topicW - ageW - 6
+	if payloadW < 20 {
+		payloadW = 20
+	}
+
+	var sb strings.Builder
+	sb.WriteString(header)
+	sb.WriteString("\n")
+	// Header-Zeile
+	sb.WriteString(stMuted.Render(fmt.Sprintf(" %-*s  %-*s  %s",
+		topicW, "Topic", ageW, "Alter", "Wert")))
+	sb.WriteString("\n")
+	sb.WriteString(stMuted.Render(" " + strings.Repeat("─", topicW+ageW+payloadW+4)))
+	sb.WriteString("\n")
+
+	visible := h - 6
+	if visible < 1 {
+		visible = 1
+	}
+	if visible > len(rows) {
+		visible = len(rows)
+	}
+	for i := 0; i < visible; i++ {
+		r := rows[i]
+		topic := truncate(r.Topic, topicW)
+		age := humanDur(r.Age) + " ago"
+		payload := PrettyPayload(r.Payload, payloadW)
+		// Frisch (< 5s) grün, älter > 5min grau
+		ageStyle := stStatusOK
+		if r.Age > 5*time.Minute {
+			ageStyle = stMuted
+		} else if r.Age > 5*time.Second {
+			ageStyle = stLabel
+		}
+		sb.WriteString(fmt.Sprintf(" %-*s  %s  %s",
+			topicW, topic,
+			ageStyle.Render(fmt.Sprintf("%-*s", ageW, age)),
+			payload))
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(stMuted.Render(footerNav))
+	return sb.String()
+}
+
 // === Render: Logs ===
 
 func renderLogs(name, body string, w, h int) string {
 	hdr := stTitle.Render(fmt.Sprintf(" Logs: %s ", name))
-	footer := stMuted.Render(" [↑/↓] scrollen   [Esc] zurück   [q] Beenden")
+	footer := stMuted.Render(" [↑/↓] scrollen   [Esc/3] zurück zur Liste   [1] Übersicht   [2] Container   [4] SPL   [5] Sensoren   [q] Beenden")
 	logBox := stBox.Width(w - 2).Height(h - 4).Render(body)
 	return lipgloss.JoinVertical(lipgloss.Left, hdr, logBox, footer)
 }
@@ -316,29 +501,52 @@ func renderLogs(name, body string, w, h int) string {
 func renderLogPicker(s Snapshot, selected int, w int) string {
 	hdr := stTitle.Render(" Logs: Container auswählen ")
 
-	var items []string
-	all := append([]ContainerStatus{}, s.Infra...)
-	all = append(all, s.Conn...)
-	for i, c := range all {
-		if c.Disabled {
-			continue
-		}
-		marker := "  "
-		if i == selected {
-			marker = "▶ "
-		}
-		glyph := glyphStyle(c.Health).Render(c.Health)
-		line := fmt.Sprintf("%s%s %s", marker, glyph, c.Name)
-		if i == selected {
-			line = lipgloss.NewStyle().Foreground(colTitle).Bold(true).Render(line)
-		}
-		items = append(items, line)
-	}
+	var lines []string
+	idx := 0
 
-	body := strings.Join(items, "\n")
+	// addGroup haengt eine Section mit Header an, wenn mindestens ein
+	// enabled Container in der Liste ist. Die Selection-Index-Logik
+	// (m.logPickerSel) zaehlt nur Container, keine Header — passt 1:1
+	// zur pickerList()-Reihenfolge in main.go.
+	addGroup := func(title string, list []ContainerStatus) {
+		hasEnabled := false
+		for _, c := range list {
+			if !c.Disabled {
+				hasEnabled = true
+				break
+			}
+		}
+		if !hasEnabled {
+			return
+		}
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, stLabel.Render(title))
+		for _, c := range list {
+			if c.Disabled {
+				continue
+			}
+			marker := "  "
+			if idx == selected {
+				marker = "▶ "
+			}
+			glyph := glyphStyle(c.Health).Render(c.Health)
+			line := fmt.Sprintf("  %s%s %s", marker, glyph, c.Name)
+			if idx == selected {
+				line = lipgloss.NewStyle().Foreground(colTitle).Bold(true).Render(line)
+			}
+			lines = append(lines, line)
+			idx++
+		}
+	}
+	addGroup("Infrastructure", s.Infra)
+	addGroup("Connectors", s.Conn)
+
+	body := strings.Join(lines, "\n")
 	box := stBox.Width(w - 4).Render(body)
 
-	footer := stMuted.Render(" [↑/↓] auswählen   [Enter] anzeigen   [Esc] zurück")
+	footer := stMuted.Render(" [↑/↓] auswählen   [Enter] anzeigen   [1] Übersicht   [2] Container   [4] SPL   [5] Sensoren   [Esc] zurück")
 	return lipgloss.JoinVertical(lipgloss.Left, hdr, box, footer)
 }
 
@@ -348,6 +556,33 @@ func titleLine(s string) string {
 	return stLabel.Render(s)
 }
 
+// kvItem ist ein Label-Wert-Paar für renderKVBlock.
+type kvItem struct {
+	Label, Value string
+}
+
+// renderKVBlock zeichnet eine Liste von Label/Value-Paaren mit Labels
+// linksbündig auf gemeinsame Breite (= längstes Label + ":") gepaddet.
+// Anders als die vorherige hartcodierte 14-char-Width bekommt jede Box
+// damit ihre eigene saubere Ausrichtung.
+func renderKVBlock(items []kvItem) string {
+	w := 0
+	for _, it := range items {
+		if l := len(it.Label) + 1; l > w {
+			w = l
+		}
+	}
+	lines := make([]string, len(items))
+	for i, it := range items {
+		lines[i] = fmt.Sprintf("%s  %s",
+			stMuted.Render(padRight(it.Label+":", w)),
+			it.Value)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// kv ist die Legacy-Helper-API (hartcodierte width=14) — bleibt für
+// abgesetzte Renderings (Logs/Sensoren) verfügbar.
 func kv(label, value string) string {
 	return fmt.Sprintf("%s  %s", stMuted.Render(padRight(label+":", 14)), value)
 }

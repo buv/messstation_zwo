@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +49,38 @@ func loadConfig() DfldConfig {
 		return c
 	}
 	_ = yaml.Unmarshal(b, &c)
+
+	// Migration vom alten Schema: falls weder dfld_live_enabled noch
+	// dfld_backfill_interval gesetzt sind, versuche das alte
+	// dfld_tx_tier-Feld zu interpretieren. Pattern 1:1 aus
+	// tools/dfld-config/dfld-config.sh.
+	if c.LiveEnabled == nil && c.Backfill == "" {
+		var legacy struct {
+			TxTier string `yaml:"dfld_tx_tier"`
+		}
+		_ = yaml.Unmarshal(b, &legacy)
+		t, f := true, false
+		switch legacy.TxTier {
+		case "live":
+			c.LiveEnabled, c.Backfill = &t, "hourly"
+		case "hourly":
+			c.LiveEnabled, c.Backfill = &f, "hourly"
+		case "daily":
+			c.LiveEnabled, c.Backfill = &f, "daily"
+		case "off":
+			c.LiveEnabled, c.Backfill = &f, "off"
+		}
+	}
+	// Defaults wenn weder altes noch neues Schema Werte hatte
+	// (frische Pi ohne dfld-config-Save bekommt damit die gleichen
+	// Defaults wie der Container-Stack zur Laufzeit verwendet).
+	if c.LiveEnabled == nil {
+		t := true
+		c.LiveEnabled = &t
+	}
+	if c.Backfill == "" {
+		c.Backfill = "hourly"
+	}
 	return c
 }
 
@@ -181,8 +215,29 @@ func wlanRSSI() string {
 		return ""
 	}
 	// Format: "wlan0: 0000 60. -52. -256 0 ..."
-	v := strings.TrimRight(f[3], ".")
-	return v + " dBm"
+	iface := strings.TrimRight(f[0], ":")
+	level := strings.TrimRight(f[3], ".")
+	result := level + " dBm"
+	if ssid := wlanSSID(iface); ssid != "" {
+		result += " (" + ssid + ")"
+	}
+	return result
+}
+
+// wlanSSID liest die aktuelle SSID via `iw dev <iface> link`. Falls
+// `iw` fehlt oder nichts verbunden: leerer String.
+func wlanSSID(iface string) string {
+	out, err := run(time.Second, "iw", "dev", iface, "link")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "SSID:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "SSID:"))
+		}
+	}
+	return ""
 }
 
 func sysDisk(path string) string {
@@ -577,20 +632,24 @@ var influxCountRe = regexp.MustCompile(`(?m)^[0-9].*?\s+(\d+)\s*$`)
 
 // influxCount fuehrt SELECT count(*) FROM <measurement> WHERE time > now()-<window>.
 //
-// Wir addieren intern +1ms zum Window damit das Range-Boundary nicht
-// genau auf einen Sample-Tick faellt (InfluxDB-WHERE ist strikt ">").
-// Die +1ms ist Polster gegen Sample-Jitter und reicht aus, weil DNMS
-// real <0.5ms Jitter zwischen 1Hz-Samples zeigt (gemessen ueber 120
-// samples: min Δ=999.590ms, max Δ=1000.512ms, std-dev 0.08ms).
+// Wir addieren intern +5ms zum Window. Zwei Anti-Glitch-Effekte:
 //
-// Pigeonhole-Hinweis: bei Window L und Sample-Periode T=1s ist die
-// Wahrscheinlichkeit fuer "ein zusaetzlicher Sample drin" (L-floor(L))/T.
-// Bei L=60.001s also 0.1% — praktisch nie ein 61 statt 60.
+//   1. Boundary-vs-Sample-Tick: InfluxDB-WHERE ist strikt ">", ohne
+//      Polster faellt der aelteste-erwartete Sample mal rein, mal raus.
+//   2. Kumulative Drift bei langen Windows: die DNMS-Sample-Periode
+//      liegt nicht exakt bei 1.000s sondern bei ca. 1.000073s (gemessen
+//      ueber 120 Samples). Ueber 1h sind das +263ms kumulative Drift,
+//      d.h. ohne Polster sieht man regelmaessig 3599 statt 3600.
 //
-// WICHTIG: InfluxQL akzeptiert keine Float-Sekunden ("60.001s" → parse error).
-// Daher verwenden wir Millisekunden-Suffix mit Integer-Wert ("60001ms").
+// Trade-off der Groesse: +1ms reicht fuer den Einzel-Jitter (<0.5ms),
+// aber nicht fuer die kumulierte Drift. +5ms deckt beides komfortabel
+// ab; das Risiko fuer ein zusaetzliches 61 ueber das Minuten-Fenster
+// ist 0.5% (5ms/1s), praktisch unsichtbar.
+//
+// WICHTIG: InfluxQL akzeptiert keine Float-Sekunden ("60.005s" → parse error).
+// Daher verwenden wir Millisekunden-Suffix mit Integer-Wert ("60005ms").
 func influxCount(measurement string, window time.Duration) int {
-	ms := window.Milliseconds() + 1
+	ms := window.Milliseconds() + 5
 	q := fmt.Sprintf("SELECT count(*) FROM %s WHERE time > now()-%dms", measurement, ms)
 	out, err := run(5*time.Second, "docker", "exec", "-i", "influxdb",
 		"influx", "-database", "dfld", "-execute", q)
@@ -700,6 +759,239 @@ func validateConfig() bool {
 	}
 	err := exec.Command("dfld-config", "validate").Run()
 	return err == nil
+}
+
+// === MQTT live stream (für SPL-Chart + Sensoren-Liste) ===
+
+// MqttMsg ist eine empfangene Live-Message vom lokalen Broker.
+type MqttMsg struct {
+	Topic   string
+	Payload string
+	Time    time.Time
+}
+
+// MqttStream wrappt einen lang laufenden `mosquitto_sub`-Subprozess und
+// liefert empfangene Messages auf Msgs aus. Stop()-Aufruf killt den
+// Subprozess und schliesst Msgs.
+type MqttStream struct {
+	cmd  *exec.Cmd
+	Msgs chan MqttMsg
+	stop chan struct{}
+}
+
+// StartMqttStream subscribed `dfld/#` und gibt einen Channel mit allen
+// einlaufenden Messages zurueck. Das `-v`-Flag bei mosquitto_sub setzt
+// das Format auf "<topic> <payload>" pro Zeile.
+func StartMqttStream() (*MqttStream, error) {
+	cmd := exec.Command("mosquitto_sub",
+		"-h", "127.0.0.1", "-p", "1883",
+		"-t", "dfld/#", "-v", "-q", "0")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	s := &MqttStream{
+		cmd:  cmd,
+		Msgs: make(chan MqttMsg, 512),
+		stop: make(chan struct{}),
+	}
+	go func() {
+		defer close(s.Msgs)
+		scanner := bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 65536), 1024*1024)
+		for scanner.Scan() {
+			line := scanner.Text()
+			sep := strings.Index(line, " ")
+			if sep < 0 {
+				continue
+			}
+			msg := MqttMsg{
+				Topic:   line[:sep],
+				Payload: line[sep+1:],
+				Time:    time.Now(),
+			}
+			select {
+			case s.Msgs <- msg:
+			case <-s.stop:
+				return
+			}
+		}
+	}()
+	return s, nil
+}
+
+func (s *MqttStream) Stop() {
+	if s == nil {
+		return
+	}
+	select {
+	case <-s.stop:
+		// schon geschlossen
+	default:
+		close(s.stop)
+	}
+	if s.cmd != nil && s.cmd.Process != nil {
+		_ = s.cmd.Process.Kill()
+		_ = s.cmd.Wait()
+	}
+}
+
+// === SPL Ring Buffer ===
+
+// SplRing speichert die letzten N dB(A)-Samples in Empfangs-Reihenfolge.
+type SplRing struct {
+	values []float64
+	cap    int
+}
+
+func NewSplRing(capacity int) *SplRing {
+	if capacity < 1 {
+		capacity = 1
+	}
+	return &SplRing{cap: capacity}
+}
+
+func (r *SplRing) Push(v float64) {
+	r.values = append(r.values, v)
+	if len(r.values) > r.cap {
+		r.values = r.values[len(r.values)-r.cap:]
+	}
+}
+
+// Resize aendert die Kapazitaet; behaelt die neuesten Werte.
+func (r *SplRing) Resize(capacity int) {
+	if capacity < 1 {
+		capacity = 1
+	}
+	r.cap = capacity
+	if len(r.values) > capacity {
+		r.values = r.values[len(r.values)-capacity:]
+	}
+}
+
+func (r *SplRing) Values() []float64 { return r.values }
+func (r *SplRing) Len() int          { return len(r.values) }
+
+func (r *SplRing) Last() float64 {
+	if len(r.values) == 0 {
+		return 0
+	}
+	return r.values[len(r.values)-1]
+}
+
+func (r *SplRing) Stats() (min, max, avg float64) {
+	if len(r.values) == 0 {
+		return 0, 0, 0
+	}
+	min, max = r.values[0], r.values[0]
+	var sum float64
+	for _, v := range r.values {
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+		sum += v
+	}
+	avg = sum / float64(len(r.values))
+	return
+}
+
+// === Sensoren-Liste (Topic-State-Map) ===
+
+type SensorEntry struct {
+	Payload string
+	Time    time.Time
+}
+
+// SensorState mappt Topic → letzte Message.
+type SensorState struct {
+	mu    sync.Mutex
+	state map[string]SensorEntry
+}
+
+func NewSensorState() *SensorState {
+	return &SensorState{state: map[string]SensorEntry{}}
+}
+
+func (s *SensorState) Update(topic, payload string, ts time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state[topic] = SensorEntry{Payload: payload, Time: ts}
+}
+
+// Snapshot gibt eine alphabetisch sortierte Liste aller Topics zurueck.
+type SensorRow struct {
+	Topic   string
+	Payload string
+	Age     time.Duration
+}
+
+func (s *SensorState) Snapshot() []SensorRow {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	topics := make([]string, 0, len(s.state))
+	for t := range s.state {
+		topics = append(topics, t)
+	}
+	sort.Strings(topics)
+	rows := make([]SensorRow, 0, len(topics))
+	for _, t := range topics {
+		e := s.state[t]
+		rows = append(rows, SensorRow{
+			Topic:   t,
+			Payload: e.Payload,
+			Age:     now.Sub(e.Time),
+		})
+	}
+	return rows
+}
+
+// PrettyPayload formatiert MQTT-Payloads kompakt fuer die Liste-Anzeige.
+// JSON-Objekte → "k1=v1 k2=v2 …" (max 3 Keys, sortiert), Skalare direkt,
+// alles auf maxLen Zeichen gestutzt.
+func PrettyPayload(payload string, maxLen int) string {
+	p := strings.TrimSpace(payload)
+	if p == "" {
+		return ""
+	}
+	var obj interface{}
+	if err := json.Unmarshal([]byte(p), &obj); err == nil {
+		switch v := obj.(type) {
+		case map[string]interface{}:
+			keys := make([]string, 0, len(v))
+			for k := range v {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			if len(keys) > 3 {
+				keys = keys[:3]
+			}
+			parts := make([]string, 0, len(keys))
+			for _, k := range keys {
+				parts = append(parts, fmt.Sprintf("%s=%v", k, v[k]))
+			}
+			return truncate(strings.Join(parts, " "), maxLen)
+		default:
+			return truncate(fmt.Sprintf("%v", v), maxLen)
+		}
+	}
+	return truncate(p, maxLen)
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-1] + "…"
 }
 
 // containerLogs holt die letzten N Zeilen Container-Logs mit Timestamps.
