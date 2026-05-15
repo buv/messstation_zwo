@@ -1,0 +1,152 @@
+---
+# Continuous Queries + Retention Policies fuer das System-Monitoring.
+#
+# Hintergrund: aktuell schreibt InfluxDB ~88 MB/Tag (WAL) — davon sind
+# nur ~11% echte DFLD-Messdaten, der Rest ist Monitoring (_internal:
+# ~52%, local_monitoring: ~36%). Ohne Retention waeren das nach 1 Jahr
+# ~6 GB persistente Disk-Footprint, das meiste davon Trivia.
+#
+# Strategie:
+#   - dfld-Messdaten: unveraendert raw, volle 1Hz-Aufloesung
+#     (Spektrogramme + Flyover-Detection brauchen das)
+#   - _internal:        raw 7d (Default-Policy "monitor" reicht schon),
+#                       parallel stuendliche Aggregate in _internal_1h
+#                       (unbegrenzt; pro Stunde nur wenige Bytes)
+#   - local_monitoring: raw 14d (telegraf 10s-Daten bleiben 2 Wochen
+#                       lang fuer Forensik abrufbar), parallel
+#                       stuendliche Aggregate in local_monitoring_1h
+#
+# Effekt: nach 1 Jahr ~900 MB statt 6 GB persistente Disk, Reduktion
+# rund -85%. Schreibrate bleibt nahezu identisch — Aggregation
+# schreibt zusaetzlich pro Stunde nur ein paar KB.
+#
+# Idempotenz: CREATE DATABASE und ALTER RETENTION POLICY sind in
+# InfluxDB idempotent. CONTINUOUS QUERIES koennen nicht "CREATE OR
+# REPLACE" — wir DROPpen sie vorher (silent wenn nicht existiert),
+# damit die Task bei jedem deploy frische Definitionen schreibt.
+
+- name: Wait for InfluxDB API to become reachable
+  ansible.builtin.command:
+    cmd: docker exec influxdb influx -execute "SHOW DATABASES"
+  register: influx_probe
+  retries: 30
+  delay: 1
+  until: influx_probe.rc == 0
+  changed_when: false
+  # docker_compose_v2 wait:true bringt nur den Container-State auf
+  # "running" — die InfluxDB-HTTP-API braucht typisch 2-5s danach.
+
+- name: Create databases (source + aggregation, idempotent)
+  ansible.builtin.command:
+    cmd: docker exec influxdb influx -execute "CREATE DATABASE {{ item }}"
+  loop:
+    # Source-DBs explizit erstellen — bei fresh Deploy haben Telegraf
+    # noch nicht geschrieben (local_monitoring existiert noch nicht) und
+    # InfluxDB hat sein eigenes monitoring noch nicht initialisiert
+    # (_internal existiert noch nicht). ALTER RETENTION + CREATE CQ
+    # wuerden sonst mit "database not found" failen.
+    - 'local_monitoring'
+    - '"_internal"'
+    # Aggregation-Targets fuer die Continuous Queries.
+    - '"_internal_1h"'
+    - 'local_monitoring_1h'
+  changed_when: false
+
+- name: Adjust local_monitoring retention to 14d
+  ansible.builtin.command:
+    cmd: >
+      docker exec influxdb influx -execute
+      "ALTER RETENTION POLICY autogen ON local_monitoring DURATION 14d REPLICATION 1 DEFAULT"
+  changed_when: false
+
+# _internal nutzt die InfluxDB-Default-RP "monitor" mit 168h (=7d) —
+# kein ALTER noetig.
+
+- name: Recreate continuous query _internal → _internal_1h
+  ansible.builtin.shell: |
+    docker exec influxdb influx -execute 'DROP CONTINUOUS QUERY "cq_internal_to_1h" ON "_internal"' 2>/dev/null || true
+    docker exec influxdb influx -execute 'CREATE CONTINUOUS QUERY "cq_internal_to_1h" ON "_internal" BEGIN SELECT mean(*), max(*) INTO "_internal_1h".autogen.:MEASUREMENT FROM /.*/ GROUP BY time(1h), * END'
+  changed_when: true
+
+- name: Recreate per-measurement continuous queries local_monitoring → local_monitoring_1h
+  # Bewusst pro Measurement eine eigene CQ mit explizitem "AS field"-
+  # Renaming — die ergebende aggregated DB hat damit identische Field-
+  # Namen wie die raw DB, und Grafana-Dashboards koennen ohne Query-
+  # Anpassungen per Datasource-Variable umgeschaltet werden.
+  # (Das frueher genutzte SELECT mean(*),min(*),max(*) haette
+  # "mean_<field>" als Output gegeben → Schema-Drift.)
+  ansible.builtin.shell: |
+    docker exec influxdb influx -execute 'DROP CONTINUOUS QUERY "cq_monitoring_to_1h" ON local_monitoring' 2>/dev/null || true
+    docker exec influxdb influx -execute 'DROP CONTINUOUS QUERY "{{ item.name }}" ON local_monitoring' 2>/dev/null || true
+    docker exec influxdb influx -execute 'CREATE CONTINUOUS QUERY "{{ item.name }}" ON local_monitoring BEGIN SELECT {{ item.fields }} INTO local_monitoring_1h.autogen.{{ item.measurement }} FROM {{ item.measurement }} GROUP BY time(1h), * END'
+  loop:
+    - name: cq_cpu_1h
+      measurement: cpu
+      fields: >-
+        mean(usage_user) AS usage_user,
+        mean(usage_system) AS usage_system,
+        mean(usage_idle) AS usage_idle,
+        mean(usage_iowait) AS usage_iowait,
+        mean(usage_nice) AS usage_nice,
+        mean(usage_softirq) AS usage_softirq,
+        mean(usage_irq) AS usage_irq,
+        mean(usage_steal) AS usage_steal
+    - name: cq_mem_1h
+      measurement: mem
+      fields: >-
+        mean(used_percent) AS used_percent,
+        mean(used) AS used,
+        mean(free) AS free,
+        mean(available) AS available,
+        mean(total) AS total,
+        mean(cached) AS cached,
+        mean(buffered) AS buffered
+    - name: cq_disk_1h
+      measurement: disk
+      fields: >-
+        mean(used) AS used,
+        mean(used_percent) AS used_percent,
+        mean(free) AS free,
+        mean(total) AS total
+    - name: cq_diskio_1h
+      measurement: diskio
+      fields: >-
+        mean(reads) AS reads,
+        mean(writes) AS writes,
+        mean(read_bytes) AS read_bytes,
+        mean(write_bytes) AS write_bytes,
+        mean(read_time) AS read_time,
+        mean(write_time) AS write_time,
+        mean(io_time) AS io_time,
+        mean(io_util) AS io_util
+    - name: cq_system_1h
+      measurement: system
+      fields: >-
+        mean(load1) AS load1,
+        mean(load5) AS load5,
+        mean(load15) AS load15,
+        mean(n_users) AS n_users,
+        mean(uptime) AS uptime
+    - name: cq_swap_1h
+      measurement: swap
+      fields: >-
+        mean(used_percent) AS used_percent,
+        mean(used) AS used,
+        mean(free) AS free,
+        mean(total) AS total
+    - name: cq_kernel_1h
+      measurement: kernel
+      fields: >-
+        mean(context_switches) AS context_switches,
+        mean(interrupts) AS interrupts,
+        mean(processes_forked) AS processes_forked
+    - name: cq_processes_1h
+      measurement: processes
+      fields: >-
+        mean(running) AS running,
+        mean(sleeping) AS sleeping,
+        mean(blocked) AS blocked,
+        mean(zombies) AS zombies,
+        mean(total) AS total,
+        mean(total_threads) AS total_threads
+  changed_when: true

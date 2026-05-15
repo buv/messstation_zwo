@@ -64,6 +64,23 @@
     database: "local_monitoring"
     uid: "def0lj80ybny8f"
 
+# Zweite System-Datasource auf die aggregated DB (1h-resolved, unbegrenzt
+# behaltend). Wird in grafana-system.json via Dashboard-Variable ${ds}
+# angesprochen — Operator switcht zwischen Live (14d raw) und Trends
+# (1h-aggregated unbegrenzt).
+- name: Create influxdb aggregated datasource (System Trends)
+  community.grafana.grafana_datasource:
+    name: "influxdb-system-aggregated"
+    grafana_url: "http://localhost:3000/"
+    grafana_user: "{{ grafana_username }}"
+    grafana_password: "{{ grafana_password }}"
+    user: "{{ influxdb_username }}"
+    password: "{{ influxdb_password }}"
+    ds_type: "influxdb"
+    ds_url: "http://influxdb:8086/"
+    database: "local_monitoring_1h"
+    uid: "system-1h-aggregated"
+
 - name: Copy dashboard file to remote host
   ansible.builtin.copy:
     src: grafana-system.json

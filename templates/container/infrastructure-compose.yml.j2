@@ -15,6 +15,15 @@ services:
       - INFLUXDB_DB=${INFLUXDB_DATABASE}
       - INFLUXDB_ADMIN_USER=${INFLUX_ADMIN_USERNAME}
       - INFLUXDB_ADMIN_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+      # SD-Karten-Wear reduzieren: InfluxDB's eigenes monitoring
+      # (Topic _internal) schreibt mit Default-Intervall 10s eine
+      # Stats-Sample pro Measurement. Auf 60s heruntergesetzt ergibt
+      # 6x weniger _internal-Writes (war ~52% des gesamten Schreib-
+      # volumens) -> grob halbierte Disk-Schreibrate insgesamt.
+      # Die 60s-Aufloesung reicht fuer Trend-Beobachtung der Engine
+      # bequem; fuer 10s-Forensik koennte man's voruebergehend wieder
+      # rauf setzen.
+      - INFLUXDB_MONITOR_STORE_WRITE_INTERVAL=60s
     labels:
       - homepage.group=Infrastructure
       - homepage.name=InfluxDB

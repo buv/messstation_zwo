@@ -27,6 +27,10 @@
   ansible.builtin.include_tasks:
     file: "deploy_infrastructure.yml"
 
+- name: Setup InfluxDB retention policies and continuous queries
+  ansible.builtin.include_tasks:
+    file: "setup_influxdb_retention.yml"
+
 - name: Deploy the connectors stack
   ansible.builtin.include_tasks:
     file: "deploy_connectors.yml"

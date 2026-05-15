@@ -24,7 +24,7 @@
       {
         "datasource": {
           "type": "influxdb",
-          "uid": "def0lj80ybny8f"
+          "uid": "${ds}"
         },
         "fieldConfig": {
           "defaults": {
@@ -193,7 +193,7 @@
             "alias": "used",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -234,7 +234,7 @@
             "alias": "free",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -276,7 +276,7 @@
             "alias": "cashed",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -318,7 +318,7 @@
             "alias": "buffered",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -363,7 +363,7 @@
       {
         "datasource": {
           "type": "influxdb",
-          "uid": "def0lj80ybny8f"
+          "uid": "${ds}"
         },
         "fieldConfig": {
           "defaults": {
@@ -477,7 +477,7 @@
             "alias": "Writes / s",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -524,7 +524,7 @@
             "alias": "Reads / s",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -575,7 +575,7 @@
       {
         "datasource": {
           "type": "influxdb",
-          "uid": "def0lj80ybny8f"
+          "uid": "${ds}"
         },
         "fieldConfig": {
           "defaults": {
@@ -727,7 +727,7 @@
             "alias": "User",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -768,7 +768,7 @@
             "alias": "System",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -810,7 +810,7 @@
             "alias": "I/O Waits",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -852,7 +852,7 @@
             "alias": "Idle",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -897,7 +897,7 @@
       {
         "datasource": {
           "type": "influxdb",
-          "uid": "def0lj80ybny8f"
+          "uid": "${ds}"
         },
         "fieldConfig": {
           "defaults": {
@@ -1042,7 +1042,7 @@
             "alias": "Written Bytes / s",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -1089,7 +1089,7 @@
             "alias": "Read Bytes / s",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -1140,7 +1140,7 @@
       {
         "datasource": {
           "type": "influxdb",
-          "uid": "def0lj80ybny8f"
+          "uid": "${ds}"
         },
         "fieldConfig": {
           "defaults": {
@@ -1275,7 +1275,7 @@
             "alias": "Disk used",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -1316,7 +1316,7 @@
             "alias": "Disk free",
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -1361,7 +1361,7 @@
       {
         "datasource": {
           "type": "influxdb",
-          "uid": "def0lj80ybny8f"
+          "uid": "${ds}"
         },
         "fieldConfig": {
           "defaults": {
@@ -1443,7 +1443,7 @@
           {
             "datasource": {
               "type": "influxdb",
-              "uid": "def0lj80ybny8f"
+              "uid": "${ds}"
             },
             "groupBy": [
               {
@@ -1490,7 +1490,27 @@
     "schemaVersion": 40,
     "tags": [],
     "templating": {
-      "list": []
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "influxdb-system",
+            "value": "influxdb-system"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Datenquelle",
+          "multi": false,
+          "name": "ds",
+          "options": [],
+          "query": "influxdb",
+          "queryValue": "",
+          "refresh": 1,
+          "regex": "/^influxdb-system(-aggregated)?$/",
+          "skipUrlSync": false,
+          "type": "datasource"
+        }
+      ]
     },
     "time": {
       "from": "now-6h",
