@@ -66,7 +66,22 @@ if ! $VALIDATE_MODE; then
 fi
 
 # === Bash-Variablen für die 18 Felder (ggf. aus existing dfld.yml laden) ===
-get() { yq -r ".$1 // \"\"" "$OUT" 2>/dev/null || true; }
+#
+# yq-Cache: alle Felder werden EINMAL per yq-Aufruf gelesen (~1s) statt
+# 19x einzeln (~17s wegen Python-Startup). _yml_load() MUSS im parent-
+# shell aufgerufen werden (nicht aus $(...)-Subshells heraus), damit das
+# Array im parent persistiert. get() läuft in subshells nur als reader.
+declare -A _YML_CACHE
+_yml_load() {
+    local k v
+    while IFS=$'\t' read -r k v; do
+        _YML_CACHE[$k]="$v"
+    done < <(yq -r 'to_entries[]? | [.key, (.value // "" | tostring)] | @tsv' "$OUT" 2>/dev/null || true)
+}
+# Einmaliger Load im parent-shell — danach sind alle $(get …)-Subshells
+# fork-copies des befüllten Caches, instant.
+_yml_load
+get() { echo "${_YML_CACHE[$1]:-}"; }
 
 DFLD_REGION=$(get dfld_region)
 DFLD_STATION=$(get dfld_station)
