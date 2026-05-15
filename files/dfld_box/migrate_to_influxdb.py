@@ -337,7 +337,9 @@ def export_postgres_events(output_file, pg_host, pg_port, pg_user, pg_password,
 def _export_trajectories(cursor, out, station_lon, station_lat, station_alt):
     """
     Pass 1: trajectory mit LEFT JOIN event_raw fuer Aircraft-Tags.
-    Schreibt InfluxDB-Lines mit reicheren fields (dist/dist_xy/dist_z/alt).
+    Schreibt InfluxDB-Lines mit dist_xy/dist_z/alt_baro, rssi, descr sowie
+    den vorgefertigten Annotations-Feldern title/text — Zielschema identisch
+    zu detect_flyover.write_event.
     """
     cursor.execute("SELECT COUNT(*) FROM trajectory")
     total = cursor.fetchone()['count']
@@ -417,6 +419,24 @@ def _export_trajectories(cursor, out, station_lon, station_lat, station_alt):
         if 'dist_xy' not in fields:
             continue  # Geom-Parse fehlgeschlagen — Datensatz hat keine
                       # verwertbare Geometrie, skippen.
+
+        # Vorgefertigte Annotations-Felder fuer Grafana (U1/U2/U3 Ueberflug-
+        # Striche) — analog detect_flyover.write_event. title/text bewusst
+        # als FIELDS, nicht Tags: als Tag wuerde jeder Wert eine eigene
+        # Series anlegen (Series-Explosion). label: Callsign bevorzugt,
+        # sonst ICAO (InfluxQL kennt kein COALESCE — der Fallback wird
+        # beim Schreiben aufgeloest).
+        callsign = tags.get('flight', '').strip()
+        icao = tags.get('hex', '').strip()
+        label = callsign if callsign else (icao if icao else '?')
+        dxy = int(round(fields['dist_xy']))
+        dz = int(round(fields['dist_z']))
+        fields['title'] = (
+            f'<a href="https://globe.adsbexchange.com/?icao={icao}" '
+            f'target="_blank">{label}</a>'
+        )
+        # <br> statt \n — Grafana rendert das Annotations-text-Feld als HTML.
+        fields['text'] = f'r: {dxy} m<br>h: {dz} m'
 
         # Timestamp: t0 (POSIX float vom Aircraft) ist genauer als
         # write-now-eventtime. Konvertiere zu ns.

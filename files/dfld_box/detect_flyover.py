@@ -157,11 +157,29 @@ class Trajectory:
             if k in self.info:
                 tags[k] = str(self.info[k]).strip()
 
+        # Pre-baked Strings als FIELDS (nicht tags) — sonst entstehen
+        # neue Series bei Variationen (jeder label-Wert = neue Series).
+        # title:  HTML-Link für Grafana-Annotation Title (rendert klickbar)
+        # text:   "r: NNN m\nh: NNN m" für Annotation-Body
+        # Fallback callsign→hex weil InfluxQL kein COALESCE hat.
+        callsign = tags.get('flight', '').strip()
+        icao = tags.get('hex', '').strip()
+        label = callsign if callsign else icao
+
         # Wir schreiben die Komponenten dist_xy (horizontal) + dist_z
         # (vertikal) statt einer 3D-Summe — die 3D-Distanz laesst sich
         # ueber sqrt(dist_xy^2 + dist_z^2) rekonstruieren, falls noetig.
+        dxy = int(round(self.min_dist_xy)) if self.min_dist_xy is not None else 0
+        dz = int(round(self.min_alt_baro - self.pool.home[2])) if self.min_alt_baro is not None else 0
         fields = {
             'rssi': float(self.min_rssi),
+            # Pre-baked HTML-Link für Grafana-Annotation-Title.
+            'title': (f'<a href="https://globe.adsbexchange.com/?icao={icao}" '
+                      f'target="_blank">{label}</a>'),
+            # Pre-baked Distance-Summary für Annotation-Body. <br> statt
+            # \n, weil Grafana das annotation-text-Feld als HTML rendert
+            # (wie auch den title-Link); \n wird sonst kollabiert.
+            'text': f'r: {dxy} m<br>h: {dz} m',
         }
         if self.min_dist_xy is not None:
             fields['dist_xy'] = float(self.min_dist_xy)
