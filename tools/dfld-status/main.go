@@ -41,7 +41,11 @@ type mqttRecvMsg MqttMsg
 type mqttDoneMsg struct{}
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+	// 5s statt 2s: dfld-status soll READ-ONLY und LIGHT sein. Pi Zero 2W
+	// mit 4 langsamen Cores + SD-Karten-IO ist mit 2s-Tick und parallelen
+	// docker-/influx-/mosquitto-Probes leicht zu ueberlasten. 5s gibt
+	// genug Headroom plus ist fuer ein Status-Tool ohnehin schnell genug.
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func snapCmd() tea.Cmd {
@@ -81,6 +85,12 @@ type model struct {
 	loading  bool
 	firstSet bool
 
+	// snapshotting verhindert ueberlappende collectSnapshot-Laeufe.
+	// Auf langsamen oder ueberlasteten Pis kann ein Snapshot durchaus
+	// 10-30s brauchen; ohne diesen Guard startet jede 2s-Tick einen
+	// weiteren parallelen Snapshot — die Pi geht in Subprozess-Explosion.
+	snapshotting bool
+
 	logPickerSel int
 	logName      string
 	logBody      string
@@ -97,27 +107,35 @@ func newModel() model {
 	return model{
 		current: screenOverview,
 		loading: true,
-		splRing: NewSplRing(80),
-		sensors: NewSensorState(),
+		// snapshotting initial true: Init() startet den ersten snapCmd,
+		// jede Tick davor wuerde sonst einen ueberlappenden Snapshot
+		// starten. Wird durch den ersten snapMsg auf false geflippt.
+		snapshotting: true,
+		splRing:      NewSplRing(80),
+		sensors:      NewSensorState(),
 	}
 }
 
-func (m *model) startStream() tea.Cmd {
+// startStream ist als Helper auf einer Kopie (model value) implementiert —
+// das passt zum value-receiver-Pattern von Init/Update/View. Der MqttStream
+// wird als Pointer im model-Feld gespeichert; eine zugewiesene Wert-Kopie
+// teilt den selben Stream.
+func startStream(m model) (model, tea.Cmd) {
 	if m.stream != nil {
-		return nil
+		return m, nil
 	}
 	s, err := StartMqttStream()
 	if err != nil {
-		return nil
+		return m, nil
 	}
 	m.stream = s
-	return nextMqttCmd(s)
+	return m, nextMqttCmd(s)
 }
 
 func (m model) Init() tea.Cmd {
 	// startStream wird im Update bei der ersten WindowSize-Msg gestartet,
 	// damit wir die Terminal-Breite fuer den Ringpuffer kennen. Hier nur
-	// Snapshot + Tick.
+	// initiale Snapshot + Tick.
 	return tea.Batch(snapCmd(), tickCmd())
 }
 
@@ -132,10 +150,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.splRing.Resize(m.width - 10)
 		}
 		// Start des MQTT-Streams einmalig nach erster WindowSize.
-		if cmd := m.startStream(); cmd != nil {
-			return m, cmd
-		}
-		return m, nil
+		var cmd tea.Cmd
+		m, cmd = startStream(m)
+		return m, cmd
 
 	case tickMsg:
 		// Im Logs-View und in Live-Streams nicht refreshen — die haben
@@ -143,12 +160,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.current == screenLogView {
 			return m, tickCmd()
 		}
+		// Verhindert Overlap-Stapel: solange ein Snapshot laeuft, kommen
+		// keine neuen. Auf langsamen Stationen wird der Refresh dadurch
+		// "as-fast-as-possible" statt fix 2s — robust gegen Pi-Schwergang.
+		if m.snapshotting {
+			return m, tickCmd()
+		}
+		m.snapshotting = true
 		return m, tea.Batch(snapCmd(), tickCmd())
 
 	case snapMsg:
 		m.snap = Snapshot(msg)
 		m.loading = false
 		m.firstSet = true
+		m.snapshotting = false
 		return m, nil
 
 	case logsMsg:
@@ -160,7 +185,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case mqttRecvMsg:
 		// Live-Daten verarbeiten — SPL-Topic fuer den Chart, alle
-		// Topics fuer die Sensoren-Liste (inkl. spl selbst).
+		// Topics fuer die Sensoren-Liste UND den TopicCounter (der
+		// von flowFor() statt mosquitto_sub-Subprozessen genutzt wird).
 		mm := MqttMsg(msg)
 		if mm.Topic == "dfld/sensors/noise/spl" {
 			if v, ok := extractDbAavg(mm.Payload); ok {
@@ -168,6 +194,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.sensors.Update(mm.Topic, mm.Payload, mm.Time)
+		topicCounter.Record(mm.Topic, mm.Time)
 		return m, nextMqttCmd(m.stream)
 
 	case mqttDoneMsg:

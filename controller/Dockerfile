@@ -1,9 +1,18 @@
+# Go-Toolchain als separate Stage holen — bookworm-slim hat nur 1.19,
+# unser dfld-status braucht 1.24. Multi-Stage-COPY ist kleiner als
+# apt-Backports-Pinning, ueberlebt OS-Updates ohne Versions-Drift.
+FROM golang:1.24-bookworm AS go-toolchain
+
 FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_ROOT_USER_ACTION=ignore \
-    PATH=/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    GOPATH=/root/go \
+    PATH=/opt/venv/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Go-Toolchain fuer den dfld-status-Build (linux/arm64-Cross-Compile)
+COPY --from=go-toolchain /usr/local/go /usr/local/go
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \

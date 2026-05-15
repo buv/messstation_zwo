@@ -105,14 +105,32 @@ func renderHeader(s Snapshot, w int) string {
 }
 
 func boxSystem(s Snapshot) string {
+	// Getrennte Zeilen, damit nichts aus der Box-Width ueberlaeuft.
+	// busy% (echte CPU-Arbeit) und iow% (warten auf Disk) auf eigenen
+	// Zeilen — auf Pi Zero 2W ist iow typisch viel groesser als busy.
+	busyStr := "—"
+	if s.System.CPUBusy >= 0 {
+		busyStr = fmt.Sprintf("%.0f%%", s.System.CPUBusy)
+	}
+	iowStr := "—"
+	if s.System.CPUIO >= 0 {
+		iowStr = fmt.Sprintf("%.0f%%", s.System.CPUIO)
+	}
+	loadStr := "—"
+	if s.System.LoadAvg != "" {
+		loadStr = s.System.LoadAvg + " (1m)"
+	}
 	body := renderKVBlock([]kvItem{
 		{"Modell", trim(s.System.PiModel, 22)},
-		{"CPU", s.System.CPUTemp},
+		{"CPU-Temp", coalesce(s.System.CPUTemp, "—")},
+		{"CPU busy", busyStr},
+		{"CPU iowait", iowStr},
+		{"Load avg", loadStr},
 		{"Uptime", s.System.Uptime},
 		{"RAM", s.System.Mem},
 		{"WLAN", coalesce(s.System.WlanRSSI, "—")},
 	})
-	return stBox.Width(34).Render(titleLine("System") + "\n" + body)
+	return stBox.Width(36).Render(titleLine("System") + "\n" + body)
 }
 
 func boxKonfig(s Snapshot) string {
@@ -185,16 +203,19 @@ func boxDisk(s Snapshot, w int) string {
 
 func boxFlow(s Snapshot, w int) string {
 	// spl/min: erwartet 60 bei 1 Hz. <30/min = bad, <54/min = warn.
-	splStr := fmt.Sprintf("%d msg/min", s.Spl1m)
+	// influxCount() = -1 bei probe-error → "—" statt schreierischem "error",
+	// weil das auf einer busy Pi gelegentlich vorkommt und sich beim
+	// naechsten Refresh selbst korrigiert.
+	var splStr string
 	switch {
 	case s.Spl1m < 0:
-		splStr = lipgloss.NewStyle().Foreground(colBad).Render("error")
+		splStr = stMuted.Render("— (probe error)")
 	case s.Spl1m < 30:
-		splStr = lipgloss.NewStyle().Foreground(colBad).Render(splStr)
+		splStr = lipgloss.NewStyle().Foreground(colBad).Render(fmt.Sprintf("%d msg/min", s.Spl1m))
 	case s.Spl1m < 54:
-		splStr = lipgloss.NewStyle().Foreground(colWarn).Render(splStr)
+		splStr = lipgloss.NewStyle().Foreground(colWarn).Render(fmt.Sprintf("%d msg/min", s.Spl1m))
 	default:
-		splStr = stStatusOK.Render(splStr)
+		splStr = stStatusOK.Render(fmt.Sprintf("%d msg/min", s.Spl1m))
 	}
 
 	brokerStr := "—"
@@ -207,12 +228,27 @@ func boxFlow(s Snapshot, w int) string {
 		aircraftStr = fmt.Sprintf("%d sichtbar", s.Aircraft)
 	}
 
+	spl5mStr := "—"
+	if s.Spl5m >= 0 {
+		spl5mStr = fmt.Sprintf("%d", s.Spl5m)
+	}
+	flyHStr := "—"
+	if s.FlyH >= 0 {
+		flyHStr = fmt.Sprintf("%d", s.FlyH)
+	}
+
+	diskStr := "—"
+	if s.DiskOps >= 0 {
+		diskStr = fmt.Sprintf("%.0f ops/s, %.0f KB/s", s.DiskOps, s.DiskKB)
+	}
+
 	body := renderKVBlock([]kvItem{
 		{"spl/min", splStr},
 		{"Broker publish", brokerStr},
-		{"InfluxDB spl/5m", fmt.Sprintf("%d", s.Spl5m)},
-		{"Aircraft sichtbar", aircraftStr},
-		{"Flyover/h", fmt.Sprintf("%d", s.FlyH)},
+		{"SD writes", diskStr},
+		{"InfluxDB spl/5m", spl5mStr},
+		{"Flugzeuge sichtbar", aircraftStr},
+		{"Flyover/h", flyHStr},
 		{"tsdb2http last-tx", s.TxAge},
 	})
 	return stBox.Width(w).Render(titleLine("Datenfluss") + "\n" + body)

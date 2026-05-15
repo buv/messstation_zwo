@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -115,6 +117,9 @@ func run(timeout time.Duration, name string, args ...string) (string, error) {
 type SystemInfo struct {
 	PiModel  string
 	CPUTemp  string
+	CPUBusy  float64 // %; -1 beim Erst-Sample
+	CPUIO    float64 // % iowait, separat ausgewiesen
+	LoadAvg  string  // "load 7.60" — wartende Prozesse, IO-bound-Indikator
 	Uptime   string
 	Mem      string
 	WlanRSSI string
@@ -124,9 +129,13 @@ type SystemInfo struct {
 }
 
 func collectSystem() SystemInfo {
+	busy, io := cpuLoadPercent()
 	return SystemInfo{
 		PiModel:  piModel(),
 		CPUTemp:  cpuTemp(),
+		CPUBusy:  busy,
+		CPUIO:    io,
+		LoadAvg:  loadAvg(),
 		Uptime:   sysUptime(),
 		Mem:      sysMem(),
 		WlanRSSI: wlanRSSI(),
@@ -134,6 +143,156 @@ func collectSystem() SystemInfo {
 		DiskDfld: sysDisk("/opt/dfld"),
 		DiskBoot: sysDisk("/boot/firmware"),
 	}
+}
+
+// loadAvg liest aus /proc/loadavg die 1-min-Load. Ein Wert >> n_cpus
+// deutet auf IO-bound oder Scheduler-Druck hin (Prozesse warten in der
+// runqueue).
+func loadAvg() string {
+	b, err := os.ReadFile("/proc/loadavg")
+	if err != nil {
+		return ""
+	}
+	f := strings.Fields(string(b))
+	if len(f) < 1 {
+		return ""
+	}
+	return f[0]
+}
+
+// CPU-Last via /proc/stat Delta zwischen zwei Reads. Beim ersten Aufruf
+// gibt's noch keinen Baseline → returnt -1; ab dem zweiten Snapshot kommt
+// der echte Wert. iowait wird BEWUSST NICHT zur busy-Zeit gerechnet (was
+// die Linux-default-Interpretation waere) — auf Pi Zero 2W mit langsamer
+// SD-Karte ist iowait der Hauptanteil und verzerrt sonst die "wie hart
+// arbeitet die CPU"-Aussage. busy% und iowait% werden separat geliefert.
+var (
+	cpuStatMu       sync.Mutex
+	cpuLastIdle     uint64
+	cpuLastIowait   uint64
+	cpuLastTotal    uint64
+	cpuHavePrevious bool
+)
+
+// cpuLoadPercent gibt (busy%, iowait%) zurueck. busy enthaelt user+system+
+// nice+irq+softirq+steal (= Cores arbeiten wirklich); iowait separat
+// (= Cores warten auf Disk/Storage). Erstaufruf: (-1, -1).
+func cpuLoadPercent() (float64, float64) {
+	b, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return -1, -1
+	}
+	// erste Zeile: "cpu  user nice system idle iowait irq softirq steal ..."
+	line := strings.SplitN(string(b), "\n", 2)[0]
+	f := strings.Fields(line)
+	if len(f) < 8 || f[0] != "cpu" {
+		return -1, -1
+	}
+	var total, idle, iowait uint64
+	for i := 1; i < 9 && i < len(f); i++ {
+		v, _ := strconv.ParseUint(f[i], 10, 64)
+		total += v
+		switch i {
+		case 4:
+			idle = v
+		case 5:
+			iowait = v
+		}
+	}
+
+	cpuStatMu.Lock()
+	defer cpuStatMu.Unlock()
+	if !cpuHavePrevious {
+		cpuLastIdle = idle
+		cpuLastIowait = iowait
+		cpuLastTotal = total
+		cpuHavePrevious = true
+		return -1, -1
+	}
+	dTotal := total - cpuLastTotal
+	dIdle := idle - cpuLastIdle
+	dIowait := iowait - cpuLastIowait
+	cpuLastIdle = idle
+	cpuLastIowait = iowait
+	cpuLastTotal = total
+	if dTotal == 0 {
+		return -1, -1
+	}
+	busy := 100.0 * float64(dTotal-dIdle-dIowait) / float64(dTotal)
+	iowaitPct := 100.0 * float64(dIowait) / float64(dTotal)
+	return busy, iowaitPct
+}
+
+// Disk-Stats via /proc/diskstats Delta. Wir lesen nur das Aggregat
+// "mmcblk0" (= gesamte SD-Karte, summiert ueber alle Partitions) —
+// genau das was die SD-Karten-Lebensdauer beeinflusst.
+//
+// Format /proc/diskstats Felder (0-indexed):
+//   [0]=major [1]=minor [2]=name [3..]=stats
+//   stats[0]=reads completed  stats[3]=ms reads
+//   stats[4]=writes completed stats[6]=sectors written  (1 sector = 512 B)
+//   stats[7]=ms writes
+var (
+	diskStatsMu      sync.Mutex
+	diskLastWrites   uint64
+	diskLastSectors  uint64
+	diskLastTime     time.Time
+	diskHavePrevious bool
+)
+
+// diskWriteStats returns (writes/s, KB/s) on the boot SD-card device
+// (mmcblk0 aggregate). Erstaufruf: (-1, -1).
+func diskWriteStats() (opsPerSec float64, kbPerSec float64) {
+	b, err := os.ReadFile("/proc/diskstats")
+	if err != nil {
+		return -1, -1
+	}
+	var writes, sectors uint64
+	found := false
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) < 11 {
+			continue
+		}
+		name := f[2]
+		// Aggregate auf der SD-Karte: "mmcblk0" (ohne pN-Suffix).
+		// Partitions wie mmcblk0p1/p2 sind im mmcblk0-Counter implizit
+		// summiert; alleinige Auswahl verhindert Doppelzaehlung.
+		if name != "mmcblk0" {
+			continue
+		}
+		w, _ := strconv.ParseUint(f[7], 10, 64)
+		s, _ := strconv.ParseUint(f[9], 10, 64)
+		writes = w
+		sectors = s
+		found = true
+		break
+	}
+	if !found {
+		return -1, -1
+	}
+
+	diskStatsMu.Lock()
+	defer diskStatsMu.Unlock()
+	now := time.Now()
+	if !diskHavePrevious {
+		diskLastWrites = writes
+		diskLastSectors = sectors
+		diskLastTime = now
+		diskHavePrevious = true
+		return -1, -1
+	}
+	dt := now.Sub(diskLastTime).Seconds()
+	if dt <= 0 {
+		return -1, -1
+	}
+	opsPerSec = float64(writes-diskLastWrites) / dt
+	// 1 sector = 512 B → KB = sectors * 0.5
+	kbPerSec = float64(sectors-diskLastSectors) * 0.5 / dt
+	diskLastWrites = writes
+	diskLastSectors = sectors
+	diskLastTime = now
+	return opsPerSec, kbPerSec
 }
 
 func piModel() string {
@@ -273,29 +432,58 @@ var (
 	ConnContainers  = []string{"sensor2mqtt", "mqtt2tsdb", "mqtt2liveview", "mqtt2mqtt", "tsdb2http", "tsdb2ftp", "tsdb2osm", "adsb2mqtt", "detect_flyover"}
 )
 
-func containerState(name string) string {
-	out, err := run(2*time.Second, "docker", "inspect", "-f", "{{.State.Status}}", name)
-	if err != nil || out == "" {
-		return "missing"
-	}
-	return out
+// ContainerInspect ist das aus `docker inspect` extrahierte Subset.
+type ContainerInspect struct {
+	Status       string
+	StartedAt    string
+	RestartCount int
 }
 
-func containerRestart(name string) int {
-	out, err := run(2*time.Second, "docker", "inspect", "-f", "{{.RestartCount}}", name)
-	if err != nil {
-		return 0
+// batchInspect ruft `docker inspect <name1> <name2> ...` EINMAL fuer alle
+// gefragten Container und parsed das JSON-Array. Fehlende Container landen
+// in stderr und werden ignoriert (sie tauchen einfach nicht im result-map
+// auf — collectContainer kann dann "missing" anzeigen).
+//
+// Vorher hatten wir 3 docker-inspect-Calls pro Container (Status, Restart,
+// StartedAt) plus parallele goroutines pro Container → bis zu 48 docker-
+// daemon-Anfragen parallel, was die Pi-Subprozess-Pool tot machte.
+func batchInspect(names []string) map[string]ContainerInspect {
+	args := append([]string{"inspect"}, names...)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	_ = cmd.Run() // missing-Container = exit-1, JSON kommt trotzdem fuer existing
+	var results []struct {
+		Name  string `json:"Name"`
+		State struct {
+			Status    string `json:"Status"`
+			StartedAt string `json:"StartedAt"`
+		} `json:"State"`
+		RestartCount int `json:"RestartCount"`
 	}
-	n, _ := strconv.Atoi(strings.TrimSpace(out))
-	return n
+	if err := json.Unmarshal(stdout.Bytes(), &results); err != nil {
+		return nil
+	}
+	m := make(map[string]ContainerInspect, len(results))
+	for _, r := range results {
+		name := strings.TrimPrefix(r.Name, "/")
+		m[name] = ContainerInspect{
+			Status:       r.State.Status,
+			StartedAt:    r.State.StartedAt,
+			RestartCount: r.RestartCount,
+		}
+	}
+	return m
 }
 
-func containerUptime(name string) string {
-	out, err := run(2*time.Second, "docker", "inspect", "-f", "{{.State.StartedAt}}", name)
-	if err != nil || out == "" || strings.HasPrefix(out, "0001") {
+// inspectUptime formatiert StartedAt-RFC3339-String in "5m"/"3h"/"2d".
+func inspectUptime(startedAt string) string {
+	if startedAt == "" || strings.HasPrefix(startedAt, "0001") {
 		return "—"
 	}
-	t, err := time.Parse(time.RFC3339Nano, out)
+	t, err := time.Parse(time.RFC3339Nano, startedAt)
 	if err != nil {
 		return "—"
 	}
@@ -316,39 +504,78 @@ func humanDur(d time.Duration) string {
 	}
 }
 
+// disabledReason gibt einen kompakten Hinweis, WARUM ein Container
+// disabled ist — yaml-Config (osm/bridge leer), Hardware-Erkennung
+// (kein ADS-B / kein USB-Stick), oder mini-Mode (grafana/homepage/
+// telegraf gehoeren beim mini-Deploy nicht ins Compose).
+func disabledReason(name string, cfg DfldConfig) string {
+	switch name {
+	case "tsdb2osm":
+		if cfg.OsmAPIKey == "" {
+			return "(osm_api_key leer)"
+		}
+	case "mqtt2mqtt":
+		if cfg.MqttBroker == "" {
+			return "(mqtt_bridged_broker leer)"
+		}
+	case "adsb2mqtt", "detect_flyover", "ultrafeeder":
+		return "(kein ADS-B-USB-Stick erkannt)"
+	case "grafana", "homepage", "telegraf":
+		return "(nicht im mini-Deploy)"
+	}
+	return "(nicht im Compose)"
+}
+
 // isDisabled leitet aus dfld.yml und Compose-Files ab, ob ein Container
 // per Konfiguration nicht laufen soll (also "–" statt "✗" anzuzeigen ist).
+//
+// Zwei-stufige Logik:
+//   1. dfld.yml-basierte Deaktivierung (osm leer, mqtt-bridge leer)
+//   2. Generischer Compose-File-Check: existiert der Container ueberhaupt
+//      in den deployten Compose-Files? Falls nicht (z.B. Mini-Mode ohne
+//      grafana/homepage/telegraf/ultrafeeder/adsb2mqtt/detect_flyover),
+//      ist "disabled" die ehrlichere Anzeige als "✗ down".
 func isDisabled(name string, cfg DfldConfig) bool {
 	switch name {
 	case "tsdb2osm":
-		return cfg.OsmAPIKey == ""
-	case "mqtt2mqtt":
-		return cfg.MqttBroker == ""
-	case "adsb2mqtt", "detect_flyover", "ultrafeeder":
-		// Mini-Mode: nicht im Compose-File ausgerollt.
-		for _, p := range []string{pathConnectorsDir + "/docker-compose.yml", "/opt/dfld/infrastructure/docker-compose.yml"} {
-			b, err := os.ReadFile(p)
-			if err == nil && bytes.Contains(b, []byte("container_name: "+name)) {
-				return false
-			}
+		if cfg.OsmAPIKey == "" {
+			return true
 		}
-		return true
+	case "mqtt2mqtt":
+		if cfg.MqttBroker == "" {
+			return true
+		}
 	}
-	return false
+	// Generischer Check fuer alle Container: in einem der deployten
+	// Compose-Files referenziert?
+	for _, p := range []string{
+		pathConnectorsDir + "/docker-compose.yml",
+		"/opt/dfld/infrastructure/docker-compose.yml",
+	} {
+		b, err := os.ReadFile(p)
+		if err == nil && bytes.Contains(b, []byte("container_name: "+name)) {
+			return false
+		}
+	}
+	return true
 }
 
-func collectContainer(name string, cfg DfldConfig) ContainerStatus {
+func collectContainer(name string, cfg DfldConfig, inspect map[string]ContainerInspect) ContainerStatus {
 	s := ContainerStatus{Name: name}
 	if isDisabled(name, cfg) {
 		s.State = "disabled"
 		s.Disabled = true
 		s.Health = "–"
-		s.Flow = "(per dfld.yml)"
+		s.Flow = disabledReason(name, cfg)
 		return s
 	}
-	s.State = containerState(name)
-	s.RestartCount = containerRestart(name)
-	s.Uptime = containerUptime(name)
+	if ins, ok := inspect[name]; ok {
+		s.State = ins.Status
+		s.RestartCount = ins.RestartCount
+		s.Uptime = inspectUptime(ins.StartedAt)
+	} else {
+		s.State = "missing"
+	}
 	s.Flow = flowFor(name)
 	s.Health = healthGlyph(s)
 	return s
@@ -396,43 +623,35 @@ func flowFor(name string) string {
 		}
 		return fmt.Sprintf("aircraft: %d sichtbar", n)
 	case "sensor2mqtt":
-		// Konsistent mit adsb2mqtt: 5s live-Sample auf dem MQTT-Topic
-		// (rohe Anzahl, kein Skalieren), parallel ein groesseres Window
-		// aus InfluxDB (1h = ~3600 erwartet bei 1Hz). Mismatch zwischen
-		// beiden = sofortige Diagnose welche Pipeline-Stufe wackelt.
-		var (
-			liveCount int
-			tsdbCount int
-			wg        sync.WaitGroup
-		)
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			liveCount = mqttCount("dfld/sensors/noise/spl", 5*time.Second)
-		}()
-		go func() {
-			defer wg.Done()
-			tsdbCount = influxCount("spl", time.Hour)
-		}()
-		wg.Wait()
-		livePart := "?"
-		if liveCount >= 0 {
-			livePart = fmt.Sprintf("%d", liveCount)
-		}
+		// Live-Count aus dem permanent laufenden MQTT-Stream (kein neuer
+		// Subprozess pro Snapshot). InfluxDB-Count parallel ueber HTTP.
+		liveCount := topicCounter.CountWindow("dfld/sensors/noise/spl", 5*time.Second)
+		tsdbCount := influxCount("spl", time.Hour)
 		tsdbPart := "?"
 		if tsdbCount >= 0 {
 			tsdbPart = fmt.Sprintf("%d", tsdbCount)
 		}
-		return fmt.Sprintf("spl: %s msgs/5s (live)  %s msgs/1h (tsdb)", livePart, tsdbPart)
+		return fmt.Sprintf("spl: %d msgs/5s (live)  %s msgs/1h (tsdb)", liveCount, tsdbPart)
 	case "mqtt2tsdb":
-		return fmt.Sprintf("spl/1m: %d (tsdb)", influxCount("spl", time.Minute))
+		// Hinweis: dieser Wert wird auch in der Uebersicht-Datenfluss-Box
+		// als snap.Spl1m angezeigt. Wir koennten ihn dort cachen, aber
+		// dann muesste flowFor das snap kennen — refactor for later.
+		// Mit dem influxSemaphore (max 2 parallel) ist die Duplikation
+		// nicht mehr Pi-fatal.
+		n := influxCount("spl", time.Minute)
+		if n < 0 {
+			return "spl/1m: — (probe error)"
+		}
+		return fmt.Sprintf("spl/1m: %d (tsdb)", n)
 	case "mqtt2liveview":
-		// mqtt2liveview.py loggt alle 10min eine Stats-Zeile:
-		//   "Stats: sent=N, dropped=N, connected=True"
-		// (sent = erfolgreich an LiveView per UDP gesendet).
+		// Input-Rate aus MQTT-Stream-Cache + 10-Min-Stats aus Container-Log.
+		inCount := topicCounter.CountWindow("dfld/sensors/noise/spl/#", 5*time.Second)
 		s := parseStatsLine("mqtt2liveview", "sent")
 		if !s.OK {
-			return "keine Stats (noch nicht geloggt?)"
+			if s.Primary == -1 {
+				return fmt.Sprintf("in: %d msgs/5s  (Stats probe timeout)", inCount)
+			}
+			return fmt.Sprintf("in: %d msgs/5s  (warte auf 1. Stats-Log)", inCount)
 		}
 		conn := "✓"
 		if !s.Connected {
@@ -449,7 +668,10 @@ func flowFor(name string) string {
 		// Zuverlaessig + Rate aus Delta zwischen letzten zwei Stats.
 		s := parseStatsLine("mqtt2mqtt", "forwarded")
 		if !s.OK {
-			return "keine Stats"
+			if s.Primary == -1 {
+				return "(probe timeout)"
+			}
+			return "keine Stats (warte auf 1. Logging)"
 		}
 		conn := "✓"
 		if !s.Connected {
@@ -482,18 +704,15 @@ func flowFor(name string) string {
 		}
 		return "last-tx —"
 	case "adsb2mqtt":
-		// Topic ist `dfld/adsb/beast` (aus Container-Logs verifiziert).
-		// 5s sample, rohe Anzahl — adsb landet nicht in InfluxDB, daher
-		// kein Vergleichswert. Kann legitim 0 sein bei wenig Luftverkehr;
-		// ultrafeeder-Zeile zeigt parallel an, ob ueberhaupt Aircraft
-		// sichtbar sind.
-		n := mqttCount("dfld/adsb/#", 5*time.Second)
-		if n < 0 {
-			return "adsb: error"
-		}
+		// Count aus MQTT-Stream-Cache, kein extra Subprozess.
+		n := topicCounter.CountWindow("dfld/adsb/#", 5*time.Second)
 		return fmt.Sprintf("adsb: %d msgs/5s (live)", n)
 	case "detect_flyover":
-		return fmt.Sprintf("events/h: %d", influxCount("flyover", time.Hour))
+		n := influxCount("flyover", time.Hour)
+		if n < 0 {
+			return "events/h: — (probe error)"
+		}
+		return fmt.Sprintf("events/h: %d", n)
 	}
 	return "—"
 }
@@ -563,12 +782,26 @@ var statsTsRe = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})`)
 // parseStatsLine zieht die letzten Stats-Zeilen aus dem Container-Log
 // und parst sie. `primaryKey` ist der Name des Hauptzaehlers in der
 // Log-Zeile (z.B. "forwarded" oder "sent").
+// StatsErrTimeout signalisiert dem flow-formatter dass docker logs in der
+// Probe-Zeit nicht antwortete (Pi-Schwergang) — anders als "Stats fehlen
+// noch", was erst nach Container-Restart fuer ~10 Min normal ist.
+const StatsErrTimeout = "__timeout__"
+
 func parseStatsLine(container, primaryKey string) StatsLine {
 	res := StatsLine{RatePerSec: -1}
-	out, err := run(3*time.Second, "sh", "-c",
+	// 8s statt 3s: bei voller Pi-Last (compose recreate, telegraf-burst)
+	// dauert ein "docker logs --tail 400" auch mal mehrere Sekunden.
+	out, err := run(8*time.Second, "sh", "-c",
 		fmt.Sprintf("docker logs --tail 400 %s 2>&1 | grep 'Stats:' | tail -2", container))
-	if err != nil || out == "" {
+	if err != nil {
+		// docker logs hat einen anderen Fehler als "leeres Output" —
+		// signalisieren ueber spezielles Field damit der Renderer
+		// "(probe timeout)" anzeigt statt "noch nicht geloggt".
+		res.Primary = -1
 		return res
+	}
+	if out == "" {
+		return res // OK=false, ohne Timeout-Marker → "noch nicht geloggt"
 	}
 	lineRe := regexp.MustCompile(primaryKey + `=(\d+).*?dropped=(\d+).*?connected=(\w+)`)
 	lines := strings.Split(strings.TrimSpace(out), "\n")
@@ -621,14 +854,23 @@ func aircraftCount() int {
 }
 
 func httpCode(url string) string {
-	out, err := run(3*time.Second, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2", url)
+	// max-time 5s + run-context 6s: bei busy Pi war 2s zu knapp und
+	// gab false "ping fail" obwohl influxdb antwortet (curl-call selbst
+	// dauert auf der Pi ~0.5-1s, plus moegliche TCP-Connect-Latenz).
+	out, err := run(6*time.Second, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "5", url)
 	if err != nil {
 		return "fail"
 	}
 	return out
 }
 
-var influxCountRe = regexp.MustCompile(`(?m)^[0-9].*?\s+(\d+)\s*$`)
+// influxHTTPClient mit kurz-lebigem keep-alive — pro Snapshot werden
+// einige Queries gleichzeitig gemacht, die HTTP-API ist parallel-faehig
+// (anders als `docker exec influxdb influx`, das je Aufruf ~500ms CLI-
+// Startup-Overhead kostet plus single-CLI-bottleneck).
+var influxHTTPClient = &http.Client{
+	Timeout: 15 * time.Second,
+}
 
 // influxCount fuehrt SELECT count(*) FROM <measurement> WHERE time > now()-<window>.
 //
@@ -648,20 +890,50 @@ var influxCountRe = regexp.MustCompile(`(?m)^[0-9].*?\s+(\d+)\s*$`)
 //
 // WICHTIG: InfluxQL akzeptiert keine Float-Sekunden ("60.005s" → parse error).
 // Daher verwenden wir Millisekunden-Suffix mit Integer-Wert ("60005ms").
+// influxResponse spiegelt das InfluxDB-v1 /query-JSON-Format wider:
+//   {"results":[{"series":[{"name":"spl","columns":[...],"values":[[ts,c1,c2,...]]}]}]}
+type influxResponse struct {
+	Results []struct {
+		Series []struct {
+			Name    string          `json:"name"`
+			Columns []string        `json:"columns"`
+			Values  [][]interface{} `json:"values"`
+		} `json:"series"`
+	} `json:"results"`
+}
+
 func influxCount(measurement string, window time.Duration) int {
 	ms := window.Milliseconds() + 5
 	q := fmt.Sprintf("SELECT count(*) FROM %s WHERE time > now()-%dms", measurement, ms)
-	out, err := run(5*time.Second, "docker", "exec", "-i", "influxdb",
-		"influx", "-database", "dfld", "-execute", q)
+	u := fmt.Sprintf("http://127.0.0.1:8086/query?db=dfld&q=%s", url.QueryEscape(q))
+
+	resp, err := influxHTTPClient.Get(u)
 	if err != nil {
 		return -1
 	}
-	m := influxCountRe.FindStringSubmatch(out)
-	if m == nil {
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return -1
+	}
+
+	var r influxResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return -1
+	}
+	if len(r.Results) == 0 || len(r.Results[0].Series) == 0 || len(r.Results[0].Series[0].Values) == 0 {
 		return 0
 	}
-	n, _ := strconv.Atoi(m[1])
-	return n
+	row := r.Results[0].Series[0].Values[0]
+	// Erstes Element ist time, ab Index 1 die count_*-Werte. Wir nehmen
+	// den ersten count — bei SELECT count(*) FROM spl sind das die
+	// Counts der Felder (alle gleich, weil 1:1-Field-Mapping pro Sample).
+	if len(row) < 2 {
+		return 0
+	}
+	if v, ok := row[1].(float64); ok {
+		return int(v)
+	}
+	return 0
 }
 
 func logCount(container, pattern, since string) int {
@@ -686,6 +958,8 @@ type Snapshot struct {
 	ConfOK       bool
 	Spl1m        int     // count(spl) aus InfluxDB last 1 min — bei 1Hz erwartet 60
 	BrokerPerMin float64 // msg/min broker-weit (alle Topics) ueber $SYS
+	DiskOps      float64 // SD-Karten-Schreibops/s (mmcblk0)
+	DiskKB       float64 // SD-Karten-Schreibbytes in KB/s
 	Spl5m        int     // count(spl) last 5 min — fuer Trend
 	FlyH         int
 	Aircraft     int
@@ -702,36 +976,47 @@ func collectSnapshot() Snapshot {
 		Cfg:    cfg,
 		Freeze: freezeActive(),
 		System: collectSystem(),
-		ConfOK: validateConfig(),
+		// ConfOK wird in einer der parallelen Goroutines weiter unten
+		// gesetzt — validateConfig() ist heute ~16s langsam (dfld-config.sh
+		// yq-Schleife), darf den Critical-Path nicht blockieren.
 	}
 	snap.Infra = make([]ContainerStatus, len(InfraContainers))
 	snap.Conn = make([]ContainerStatus, len(ConnContainers))
 
+	// Alle docker-inspect-Anfragen in EINEM Call buendeln — statt
+	// 16×3 = 48 parallelen docker-daemon-Subprozessen nur einer.
+	all := append([]string{}, InfraContainers...)
+	all = append(all, ConnContainers...)
+	inspect := batchInspect(all)
+
 	var wg sync.WaitGroup
 
-	// Container-Stati parallel (jeder ruft intern flowFor → eigene exec-Calls).
+	// Container-flow-Probes parallel (docker logs grep, MQTT/influx
+	// samples). State/Uptime/Restart kommen aus dem batchInspect oben.
 	for i, name := range InfraContainers {
 		wg.Add(1)
 		go func(i int, n string) {
 			defer wg.Done()
-			snap.Infra[i] = collectContainer(n, cfg)
+			snap.Infra[i] = collectContainer(n, cfg, inspect)
 		}(i, name)
 	}
 	for i, name := range ConnContainers {
 		wg.Add(1)
 		go func(i int, n string) {
 			defer wg.Done()
-			snap.Conn[i] = collectContainer(n, cfg)
+			snap.Conn[i] = collectContainer(n, cfg, inspect)
 		}(i, name)
 	}
 
 	// Overview-spezifische Probes parallel (jede goroutine schreibt
 	// auf ein eigenes Feld — kein Race).
-	wg.Add(4)
+	wg.Add(6)
 	go func() { defer wg.Done(); snap.Spl1m = influxCount("spl", time.Minute) }()
 	go func() { defer wg.Done(); snap.BrokerPerMin = brokerPublishPerMin() }()
 	go func() { defer wg.Done(); snap.Spl5m = influxCount("spl", 5*time.Minute) }()
 	go func() { defer wg.Done(); snap.FlyH = influxCount("flyover", time.Hour) }()
+	go func() { defer wg.Done(); snap.ConfOK = validateConfig() }()
+	go func() { defer wg.Done(); snap.DiskOps, snap.DiskKB = diskWriteStats() }()
 
 	wg.Wait()
 
@@ -757,7 +1042,13 @@ func validateConfig() bool {
 	if _, err := exec.LookPath("dfld-config"); err != nil {
 		return false
 	}
-	err := exec.Command("dfld-config", "validate").Run()
+	// dfld-config.sh ist heute ~16s langsam (13 sequentielle yq-Aufrufe).
+	// 30s Timeout damit der Snapshot bei Erst-Run nicht in einer Endlos-
+	// Wartezeit haengt. Eigentliche Fix gehoert in dfld-config.sh (yq
+	// konsolidieren), aber bis dahin: lieber Timeout als haengen.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := exec.CommandContext(ctx, "dfld-config", "validate").Run()
 	return err == nil
 }
 
@@ -908,6 +1199,74 @@ type SensorEntry struct {
 	Time    time.Time
 }
 
+// TopicCounter zaehlt eingehende MQTT-Messages pro Topic in einem
+// sliding 60s-Fenster. Wird vom MqttStream-Receiver (main.go Update)
+// gefuettert und von flowFor() abgefragt — vermeidet kostspielige
+// mosquitto_sub-Subprozesse pro Snapshot.
+type TopicCounter struct {
+	mu      sync.Mutex
+	samples map[string][]time.Time
+}
+
+// topicCounter ist die Singleton-Instanz die der Stream beschreibt.
+var topicCounter = &TopicCounter{samples: map[string][]time.Time{}}
+
+func (tc *TopicCounter) Record(topic string, t time.Time) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.samples[topic] = append(tc.samples[topic], t)
+	cutoff := t.Add(-60 * time.Second)
+	arr := tc.samples[topic]
+	i := 0
+	for ; i < len(arr) && arr[i].Before(cutoff); i++ {
+	}
+	if i > 0 {
+		tc.samples[topic] = arr[i:]
+	}
+}
+
+// CountWindow zaehlt alle Messages in `window` deren Topic auf `pattern`
+// matched (MQTT-Wildcards + und # unterstuetzt).
+func (tc *TopicCounter) CountWindow(pattern string, window time.Duration) int {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	cutoff := time.Now().Add(-window)
+	count := 0
+	for topic, times := range tc.samples {
+		if !topicMatch(topic, pattern) {
+			continue
+		}
+		for _, t := range times {
+			if t.After(cutoff) {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// topicMatch implementiert MQTT-wildcard matching: + = ein Level, # = rest.
+func topicMatch(topic, pattern string) bool {
+	if pattern == topic {
+		return true
+	}
+	tparts := strings.Split(topic, "/")
+	pparts := strings.Split(pattern, "/")
+	for i, pp := range pparts {
+		if pp == "#" {
+			return true
+		}
+		if i >= len(tparts) {
+			return false
+		}
+		if pp == "+" || pp == tparts[i] {
+			continue
+		}
+		return false
+	}
+	return len(tparts) == len(pparts)
+}
+
 // SensorState mappt Topic → letzte Message.
 type SensorState struct {
 	mu    sync.Mutex
@@ -1010,8 +1369,9 @@ func containerLogs(name string, tail int) string {
 // matched, und gibt deren Docker-Timestamp zurueck. Wird fuer
 // "last-tx X ago"-Anzeigen bei tsdb2ftp/tsdb2osm/mqtt2liveview genutzt
 // (die nicht — wie tsdb2http — ein eigenes State-File pflegen).
+// 10s timeout: bei busy Pi koennen docker logs Aufrufe haengen.
 func lastLogMatch(container, pattern string) (time.Time, bool) {
-	out, err := run(8*time.Second, "sh", "-c",
+	out, err := run(10*time.Second, "sh", "-c",
 		fmt.Sprintf("docker logs --tail 500 --timestamps %s 2>&1 | grep -E %q | tail -1",
 			container, pattern))
 	if err != nil || out == "" {
