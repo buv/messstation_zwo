@@ -31,16 +31,28 @@ def main():
     logging.basicConfig(format='%(asctime)s - %(levelname)s:%(message)s', level=config.log_level)
     logging.info(f"Configuration: {config}")
     
-    # create connection to influxdb v1
+    # create connection to influxdb v1 — Retry-Loop statt sys.exit:
+    # bei parallelem `docker compose up` startet mqtt2tsdb haeufig
+    # bevor influxdb seine HTTP-API antwortet. Frueher gab es dann
+    # sys.exit(1) + Container-Restart-Spirale (sichtbar als steigender
+    # RestartCount). Jetzt: wir warten 5s und versuchen erneut, max 60x
+    # (= 5 Minuten). Reicht reichlich fuer compose-Startup-Reihenfolgen.
     host, port = config.influxdb_server.split(':')
     port = int(port)
-    logging.info(f'Connecting to InfluxDB at {host}:{port}...')
-    influx_client = InfluxDBClient(host=host, port=port, username=config.influxdb_username, password=config.influxdb_password) 
-    try:
-        influx_client.ping()
-        logging.info("Connected to InfluxDB.")
-    except Exception as e:
-        logging.error(f"Failed to connect to InfluxDB: {e}")
+    influx_client = InfluxDBClient(host=host, port=port,
+                                   username=config.influxdb_username,
+                                   password=config.influxdb_password)
+    for attempt in range(60):
+        logging.info(f'Connecting to InfluxDB at {host}:{port}...')
+        try:
+            influx_client.ping()
+            logging.info("Connected to InfluxDB.")
+            break
+        except Exception as e:
+            logging.warning(f"InfluxDB not ready yet (attempt {attempt+1}/60): {e}")
+            time.sleep(5)
+    else:
+        logging.error("Gave up after 5 minutes; container will exit and be restarted.")
         sys.exit(1)
 
     # Ensure database exists
@@ -51,8 +63,9 @@ def main():
     influx_client.switch_database(config.influxdb_database)
     logging.info(f"Using InfluxDB database: {config.influxdb_database}")
         
-    # MQTT-Client für MQTT v3.1.1 über TCP
+    # MQTT-Client für MQTT v3.1.1 über TCP, paho-mqtt 2.x callback-API V2.
     client = mqtt.Client(
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         client_id=f"mqtt2tsdb-{os.getpid()}",
         clean_session=True,
         protocol=mqtt.MQTTv311,
@@ -67,8 +80,8 @@ def main():
     tag_keys = ["source"]
 
     # Callback: Verbindung hergestellt → Topic abonnieren
-    def on_connect(cli, userdata, flags, rc):
-        # rc == 0 bedeutet Erfolg
+    def on_connect(cli, userdata, flags, reason_code, properties):
+        rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
         status = "ok" if rc == 0 else f"rc={rc}"
         logging.info(f"Connected: {status}, flags={flags}")
         if rc == 0:
@@ -128,7 +141,8 @@ def main():
             logging.error(f"Error processing message: {e}")
 
     # Callback: Verbindung verloren/geschlossen
-    def on_disconnect(cli, userdata, rc):
+    def on_disconnect(cli, userdata, disconnect_flags, reason_code, properties):
+        rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
         # rc != 0 → ungewollte Trennung; paho versucht Reconnect (connect_async + loop_start)
         if rc != 0:
             logging.info(f"Disconnected unexpectedly (rc={rc}), will reconnect…")

@@ -77,6 +77,7 @@ class MqttDataSink(DataSink, abc.ABC):
         try:
             self.logger.info(f"Connecting to MQTT broker at {self.mqtt_server}...")
             self.client = mqtt.Client(
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
                 client_id=self.client_id,
                 clean_session=True,
                 userdata=None,

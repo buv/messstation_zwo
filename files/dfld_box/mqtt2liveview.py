@@ -35,8 +35,9 @@ def main():
     sent_messages = 0
     dropped_messages = 0
 
-    # MQTT-Client für MQTT v3.1.1 über TCP
+    # MQTT-Client für MQTT v3.1.1 über TCP, paho-mqtt 2.x callback-API V2.
     client = mqtt.Client(
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         client_id=config.client_id,
         clean_session=True,
         protocol=mqtt.MQTTv311,
@@ -48,8 +49,8 @@ def main():
     client.reconnect_delay_set(min_delay=1, max_delay=30)
 
     # Callback: Verbindung hergestellt → Topic abonnieren
-    def on_connect(cli, userdata, flags, rc):
-        # rc == 0 bedeutet Erfolg
+    def on_connect(cli, userdata, flags, reason_code, properties):
+        rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
         status = "ok" if rc == 0 else f"rc={rc}"
         logging.info(f"Connected: {status}, flags={flags}")
         if rc == 0:
@@ -95,7 +96,8 @@ def main():
             logging.error(f"Error processing message: {e}")
 
     # Callback: Verbindung verloren/geschlossen
-    def on_disconnect(cli, userdata, rc):
+    def on_disconnect(cli, userdata, disconnect_flags, reason_code, properties):
+        rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
         # rc != 0 → ungewollte Trennung; paho versucht Reconnect (connect_async + loop_start)
         if rc != 0:
             logging.info(f"Disconnected unexpectedly (rc={rc}), will reconnect…")

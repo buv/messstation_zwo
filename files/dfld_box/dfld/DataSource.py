@@ -341,14 +341,16 @@ class MqttDataSource(DataSource, abc.ABC):
             self.logger.info(f"Initializing MQTT client connecting to {self.mqtt_server}...")
             
             self.client = mqtt.Client(
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
                 client_id=self.client_id,
                 clean_session=True,
                 protocol=mqtt.MQTTv311,
                 transport="tcp",
             )
-            
-            # Set callbacks
-            def on_connect(cli, userdata, flags, rc):
+
+            # Set callbacks (paho-mqtt 2.x V2-Signaturen)
+            def on_connect(cli, userdata, flags, reason_code, properties):
+                rc = reason_code.value if hasattr(reason_code, 'value') else reason_code
                 if rc == 0:
                     self.logger.info(f"Connected to MQTT broker, subscribing to {self.topic}")
                     cli.subscribe(self.topic, qos=self.qos)
