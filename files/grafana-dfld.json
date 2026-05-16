@@ -24,11 +24,11 @@
             2
           ]
         },
-        "hide": false,
+        "hide": true,
         "iconColor": "blue",
         "name": "U3",
         "target": {
-          "query": "SELECT title, text FROM event_raw WHERE dist_xy > 2000 AND $timeFilter ORDER BY time DESC LIMIT 1000",
+          "query": "SELECT title, text FROM event_raw WHERE dist_xy > 2000 AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
           "refId": "Anno",
           "resultFormat": "table",
@@ -47,11 +47,11 @@
             2
           ]
         },
-        "hide": false,
+        "hide": true,
         "iconColor": "yellow",
         "name": "U2",
         "target": {
-          "query": "SELECT title, text FROM event_raw WHERE dist_xy > 1000 AND dist_xy <= 2000 AND $timeFilter ORDER BY time DESC LIMIT 1000",
+          "query": "SELECT title, text FROM event_raw WHERE dist_xy > 1000 AND dist_xy <= 2000 AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
           "refId": "Anno",
           "resultFormat": "table",
@@ -70,11 +70,11 @@
             2
           ]
         },
-        "hide": false,
+        "hide": true,
         "iconColor": "red",
         "name": "U1",
         "target": {
-          "query": "SELECT title, text FROM event_raw WHERE dist_xy <= 1000 AND $timeFilter ORDER BY time DESC LIMIT 1000",
+          "query": "SELECT title, text FROM event_raw WHERE dist_xy <= 1000 AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
           "refId": "Anno",
           "resultFormat": "table",
@@ -459,7 +459,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Versatz"
+                "value": "Versatz / m"
               },
               {
                 "id": "custom.width",
@@ -475,7 +475,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Höhe"
+                "value": "Höhe / m"
               },
               {
                 "id": "custom.width",
@@ -573,7 +573,7 @@
             "type": "influxdb",
             "uid": "cectojnfyi3ggd"
           },
-          "query": "SELECT flight, dist_xy, dist_z, r, t, hex, descr FROM event_raw WHERE $timeFilter AND dist_z <= $alt_max ORDER BY time DESC",
+          "query": "SELECT flight, dist_xy, dist_z, r, t, hex, descr FROM event_raw WHERE $timeFilter AND dist_xy <= $dxy_max AND dist_z <= $alt_max ORDER BY time DESC",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "table"
@@ -1265,10 +1265,73 @@
   "templating": {
     "list": [
       {
+        "current": {
+          "text": "≤ 3000 m",
+          "value": "3000"
+        },
+        "description": "Maximaler Versatz (dist_xy) für die Überflugsliste",
+        "hide": 0,
+        "includeAll": false,
+        "label": "max. Versatz [m]",
+        "multi": false,
+        "name": "dxy_max",
+        "options": [
+          {
+            "selected": false,
+            "text": "≤ 500 m",
+            "value": "500"
+          },
+          {
+            "selected": false,
+            "text": "≤ 1000 m",
+            "value": "1000"
+          },
+          {
+            "selected": false,
+            "text": "≤ 1500 m",
+            "value": "1500"
+          },
+          {
+            "selected": false,
+            "text": "≤ 2000 m",
+            "value": "2000"
+          },
+          {
+            "selected": false,
+            "text": "≤ 2500 m",
+            "value": "2500"
+          },
+          {
+            "selected": true,
+            "text": "≤ 3000 m",
+            "value": "3000"
+          },
+          {
+            "selected": false,
+            "text": "≤ 4000 m",
+            "value": "4000"
+          },
+          {
+            "selected": false,
+            "text": "≤ 5000 m",
+            "value": "5000"
+          },
+          {
+            "selected": false,
+            "text": "alle",
+            "value": "99999"
+          }
+        ],
+        "query": "500,1000,1500,2000,2500,3000,4000,5000,99999",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
         "allowCustomValue": true,
         "current": {
-          "text": "alle",
-          "value": "99999"
+          "text": "≤ 2000 m",
+          "value": "2000"
         },
         "description": "Maximalhöhe (dist_z) für die Überflugsliste — nur Flüge unter dieser Höhe anzeigen",
         "hide": 0,
@@ -1293,7 +1356,7 @@
             "value": "1000"
           },
           {
-            "selected": false,
+            "selected": true,
             "text": "≤ 2000 m",
             "value": "2000"
           },
@@ -1303,7 +1366,7 @@
             "value": "5000"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "alle",
             "value": "99999"
           }
