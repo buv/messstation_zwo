@@ -28,7 +28,7 @@
         "iconColor": "blue",
         "name": "U3",
         "target": {
-          "query": "SELECT title, text FROM event_raw WHERE dist_xy > 2000 AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
+          "query": "SELECT title, text FROM event_raw WHERE dist_xy > $u2_max AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
           "refId": "Anno",
           "resultFormat": "table",
@@ -51,7 +51,7 @@
         "iconColor": "yellow",
         "name": "U2",
         "target": {
-          "query": "SELECT title, text FROM event_raw WHERE dist_xy > 1000 AND dist_xy <= 2000 AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
+          "query": "SELECT title, text FROM event_raw WHERE dist_xy > $u1_max AND dist_xy <= $u2_max AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
           "refId": "Anno",
           "resultFormat": "table",
@@ -74,7 +74,7 @@
         "iconColor": "red",
         "name": "U1",
         "target": {
-          "query": "SELECT title, text FROM event_raw WHERE dist_xy <= 1000 AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
+          "query": "SELECT title, text FROM event_raw WHERE dist_xy <= $u1_max AND dist_xy <= $dxy_max AND dist_z <= $alt_max AND $timeFilter ORDER BY time DESC LIMIT 1000",
           "rawQuery": true,
           "refId": "Anno",
           "resultFormat": "table",
@@ -1375,6 +1375,30 @@
         "skipUrlSync": false,
         "type": "custom",
         "valuesFormat": "csv"
+      },
+      {
+        "current": {
+          "text": "1000",
+          "value": "1000"
+        },
+        "description": "Obergrenze U1 / Untergrenze U2 (lateraler Versatz, m)",
+        "hide": 2,
+        "name": "u1_max",
+        "query": "1000",
+        "skipUrlSync": false,
+        "type": "constant"
+      },
+      {
+        "current": {
+          "text": "2000",
+          "value": "2000"
+        },
+        "description": "Obergrenze U2 / Untergrenze U3 (lateraler Versatz, m)",
+        "hide": 2,
+        "name": "u2_max",
+        "query": "2000",
+        "skipUrlSync": false,
+        "type": "constant"
       }
     ]
   },
